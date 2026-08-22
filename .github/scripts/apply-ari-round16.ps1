@@ -27,6 +27,7 @@ $nl=[Environment]::NewLine
 $visual='        if (e.Args.Any(x => string.Equals(x, "--visual-self-test", StringComparison.OrdinalIgnoreCase)))'+$nl+'        {'+$nl+'            try { ReleaseVisualSelfTest.Run(); Shutdown(0); }'+$nl+'            catch (Exception ex) { ApplicationErrorService.Log(ex, "Visual release self-test"); Shutdown(24); }'+$nl+'            return;'+$nl+'        }'+$nl+$nl
 Write-Text $app ($t.Insert($idx,$visual))
 [xml](Get-Content '.\src\Ari.Desktop\App.xaml' -Raw)|Out-Null;[xml](Get-Content $login -Raw)|Out-Null;[xml](Get-Content $main -Raw)|Out-Null
+Get-ChildItem '.\src' -Directory -Recurse | Where-Object { $_.Name -in @('bin','obj') } | Sort-Object FullName -Descending | Remove-Item -Recurse -Force
 python scripts/generate-manifest.py
 if($LASTEXITCODE-ne 0){throw 'Manifest generation failed.'}
 python scripts/static-check.py
