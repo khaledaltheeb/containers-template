@@ -1,0 +1,41 @@
+serId,
+-            EventType = "DataQuality.RuleUpdated",
+-            EntityType = "DataQualityRule",
+-            EntityId = ((byte)rule.RuleKind).ToString(),
+-            DetailsJson = System.Text.Json.JsonSerializer.Serialize(new { rule.DisplayName, rule.IsEnabled, rule.Weight })
+-        }, cancellationToken);
++        await audit.WriteAsync(new AuditEvent(
++            userId,
++            "DataQuality.RuleUpdated",
++            "DataQualityRule",
++            ((byte)rule.RuleKind).ToString(),
++            System.Text.Json.JsonSerializer.Serialize(new { rule.DisplayName, rule.IsEnabled, rule.Weight })), cancellationToken);
+     }
+ }
+--- a/src/Ari.Application/Services/DashboardService.cs
++++ b/src/Ari.Application/Services/DashboardService.cs
+@@ -29,20 +29,18 @@
+             }).ToArray()
+         };
+         var saved = await repository.UpsertAsync(normalized, userId, cancellationToken);
+-        await audit.WriteAsync(new AuditEvent
+-        {
+-            UserId = userId,
+-            EventType = dashboard.Id.HasValue ? "Dashboard.Updated" : "Dashboard.Created",
+-            EntityType = "Dashboard",
+-            EntityId = saved.Id.ToString(),
+-            DetailsJson = System.Text.Json.JsonSerializer.Serialize(new { saved.Name, WidgetCount = saved.Widgets.Count, saved.IsDefault })
+-        }, cancellationToken);
++        await audit.WriteAsync(new AuditEvent(
++            userId,
++            dashboard.Id.HasValue ? "Dashboard.Updated" : "Dashboard.Created",
++            "Dashboard",
++            saved.Id.ToString(),
++            System.Text.Json.JsonSerializer.Serialize(new { saved.Name, WidgetCount = saved.Widgets.Count, saved.IsDefault })), cancellationToken);
+         return saved;
+     }
+ 
+     public async Task DeleteAsync(Guid id, Guid userId, CancellationToken cancellationToken = default)
+     {
+         await repository.DeleteAsync(id, cancellationToken);
+-        await audit.WriteAsync(new AuditEvent { UserId = userId, EventType = "Dashboard.Delet
