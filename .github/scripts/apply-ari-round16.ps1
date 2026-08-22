@@ -1,5 +1,6 @@
 $ErrorActionPreference='Stop'
-function Replace-Required($path,$old,$new){$t=Get-Content $path -Raw;if(-not $t.Contains($old)){throw "Pattern not found in $path"};[IO.File]::WriteAllText($path,$t.Replace($old,$new),[Text.UTF8Encoding]::new($false))}
+function Write-Text($path,$text){$full=(Resolve-Path $path).Path;[IO.File]::WriteAllText($full,$text,[Text.UTF8Encoding]::new($false))}
+function Replace-Required($path,$old,$new){$t=Get-Content $path -Raw;if(-not $t.Contains($old)){throw "Pattern not found in $path"};Write-Text $path ($t.Replace($old,$new))}
 $sln=Get-ChildItem (Join-Path $env:RUNNER_TEMP 'ari-src') -Recurse -Filter 'ARI.slnx'|Select-Object -First 1
 if(-not $sln){throw 'Reconstructed ARI source not found.'}
 $root=$sln.Directory.FullName;Set-Location $root
@@ -11,20 +12,20 @@ $login='.\src\Ari.Desktop\Views\LoginWindow.xaml';$t=Get-Content $login -Raw
 $tag='<TextBlock Text="منصة محلية لتحليل السجلات والاتجاهات والتقارير البصرية مع حفظ المصدر والتاريخ." Foreground="#D2DBE8" FontSize="15" TextWrapping="Wrap" Margin="0,28,0,0" LineHeight="24"/>'
 if(-not $t.Contains($tag)){throw 'Login tagline not found.'}
 $sig=$tag+[Environment]::NewLine+'                    '+'<TextBlock Text="by khaled altheeb" Foreground="{StaticResource SignatureBrush}" FontSize="12" FontWeight="SemiBold" Margin="0,9,0,0" FlowDirection="LeftToRight"/>'
-[IO.File]::WriteAllText($login,$t.Replace($tag,$sig),[Text.UTF8Encoding]::new($false))
+Write-Text $login ($t.Replace($tag,$sig))
 Replace-Required '.\src\Ari.Desktop\Views\MainWindow.xaml' 'Title="ARI" Width="1440" Height="900" MinWidth="1180" MinHeight="740"' 'Title="ARI" Width="1360" Height="840" MinWidth="1024" MinHeight="640"'
 Replace-Required '.\src\Ari.Desktop\Views\MainWindow.xaml' 'WindowStartupLocation="CenterScreen" FlowDirection="RightToLeft">' 'WindowStartupLocation="CenterScreen" ResizeMode="CanResize" WindowStyle="SingleBorderWindow" FlowDirection="RightToLeft">'
 $main='.\src\Ari.Desktop\Views\MainWindow.xaml';$t=Get-Content $main -Raw
 $t=$t.Replace('Foreground="{StaticResource SidebarMutedBrush}" FontSize="11" FontWeight="SemiBold"','Foreground="{StaticResource SidebarSectionHeaderBrush}" FontSize="11" FontWeight="SemiBold"')
 $t=$t.Replace('<TextBlock x:Name="VersionText" Text="—" Foreground="#6F85A5" FontSize="10" Margin="0,6,0,0"/>','<TextBlock x:Name="VersionText" Text="—" Foreground="{StaticResource SidebarMutedBrush}" FontSize="10" Margin="0,6,0,0"/>')
-[IO.File]::WriteAllText($main,$t,[Text.UTF8Encoding]::new($false))
+Write-Text $main $t
 $app='.\src\Ari.Desktop\App.xaml.cs';$t=Get-Content $app -Raw
 $marker='        if (e.Args.Any(x => string.Equals(x, "--self-test", StringComparison.OrdinalIgnoreCase)))'
 $idx=$t.IndexOf($marker,[StringComparison]::Ordinal)
 if($idx-lt 0){throw 'App self-test marker not found.'}
 $nl=[Environment]::NewLine
 $visual='        if (e.Args.Any(x => string.Equals(x, "--visual-self-test", StringComparison.OrdinalIgnoreCase)))'+$nl+'        {'+$nl+'            try { ReleaseVisualSelfTest.Run(); Shutdown(0); }'+$nl+'            catch (Exception ex) { ApplicationErrorService.Log(ex, "Visual release self-test"); Shutdown(24); }'+$nl+'            return;'+$nl+'        }'+$nl+$nl
-[IO.File]::WriteAllText($app,$t.Insert($idx,$visual),[Text.UTF8Encoding]::new($false))
+Write-Text $app ($t.Insert($idx,$visual))
 [xml](Get-Content '.\src\Ari.Desktop\App.xaml' -Raw)|Out-Null;[xml](Get-Content $login -Raw)|Out-Null;[xml](Get-Content $main -Raw)|Out-Null
 python scripts/generate-manifest.py
 if($LASTEXITCODE-ne 0){throw 'Manifest generation failed.'}
