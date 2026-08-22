@@ -1,0 +1,26 @@
+to}}
++</style></head><body>{{body}}</body></html>
+ """;
+         var htmlPath = Path.Combine(root, "report.html");
+         await File.WriteAllTextAsync(htmlPath, html, new UTF8Encoding(false), cancellationToken);
+--- a/src/Ari.Desktop/Views/EvidenceClipEditorWindow.xaml.cs
++++ b/src/Ari.Desktop/Views/EvidenceClipEditorWindow.xaml.cs
+@@ -48,15 +48,11 @@
+                     if (!string.IsNullOrWhiteSpace(details.Record.AircraftIdentifier)) lines.Add("الطائرة/الأصل: " + details.Record.AircraftIdentifier);
+                     if (!string.IsNullOrWhiteSpace(details.SectionName)) lines.Add("القسم: " + details.SectionName);
+                     if (!string.IsNullOrWhiteSpace(details.Record.Category)) lines.Add("التصنيف: " + details.Record.Category);
+-                    if (!string.IsNullOrWhiteSpace(details.Record.Description)) lines.Add("الوصف:
+-" + details.Record.Description);
+-                    if (!string.IsNullOrWhiteSpace(details.Record.ActionText)) lines.Add("إجراء الإصلاح:
+-" + details.Record.ActionText);
++                    if (!string.IsNullOrWhiteSpace(details.Record.Description)) lines.Add("الوصف:\n" + details.Record.Description);
++                    if (!string.IsNullOrWhiteSpace(details.Record.ActionText)) lines.Add("إجراء الإصلاح:\n" + details.Record.ActionText);
+                     foreach (var field in details.CustomValues.Where(x => !string.IsNullOrWhiteSpace(x.Value)))
+                         lines.Add($"{field.FieldName}: {field.Value}");
+-                    fullText = string.Join("
+-
+-", lines);
++                    fullText = string.Join("\n\n", lines);
+                 }
+             }
+ 
