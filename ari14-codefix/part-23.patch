@@ -1,0 +1,11 @@
+--- a/src/Ari.Application/Services/SystemMaintenanceService.cs
++++ b/src/Ari.Application/Services/SystemMaintenanceService.cs
+@@ -21,7 +21,7 @@
+     private const long MaxBundleUncompressedBytes = 8L * 1024 * 1024 * 1024 * 1024;
+ 
+     private static readonly JsonSerializerOptions ManifestJson = new(JsonSerializerDefaults.Web) { WriteIndented = true };
+-    private static readonly JsonSerializerOptions ConfigurationJson = new(JsonSerializerDefaults.Web) { PropertyNameCaseInsensitive = true };
++    private static readonly JsonSerializerOptions ConfigurationJson = new() { PropertyNameCaseInsensitive = true };
+ 
+     public Task<SystemDiagnosticSnapshot> GetDiagnosticsAsync(CancellationToken cancellationToken = default) =>
+         repository.GetDiagnosticsAsync(cancellationToken);
