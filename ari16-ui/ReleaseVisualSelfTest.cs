@@ -92,3 +92,5 @@ public static class ReleaseVisualSelfTest
             throw new InvalidOperationException($"{name} PNG output is invalid or unexpectedly small ({bytes.Length} bytes).");
     }
 }
+
+// Round 16 PR validation trigger.
