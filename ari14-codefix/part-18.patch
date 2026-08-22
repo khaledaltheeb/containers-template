@@ -1,0 +1,29 @@
+) ?? string.Empty).ToArray())
+             .ToArray();
+@@ -54,7 +55,8 @@
+ 
+     public static void ExportDataViewCsv(Window owner, DataView view, string defaultName)
+     {
+-        var headers = view.Table.Columns.Cast<DataColumn>().Select(x => x.ColumnName).ToArray();
++        var table = view.Table ?? throw new InvalidOperationException("DataView is not attached to a DataTable.");
++        var headers = table.Columns.Cast<DataColumn>().Select(x => x.ColumnName).ToArray();
+         var rows = view.Cast<DataRowView>()
+             .Select(row => headers.Select(header => Convert.ToString(row[header]) ?? string.Empty));
+         ExportCsv(owner, headers, rows, defaultName);
+--- a/src/Ari.Desktop/Views/AnalysisWindow.xaml.cs
++++ b/src/Ari.Desktop/Views/AnalysisWindow.xaml.cs
+@@ -346,28 +346,28 @@
+     private static PlotModel BuildColumnChart(PlotModel model, IReadOnlyList<AnalysisCell> cells, bool hasColumnDimension)
+     {
+         var rowKeys = cells.Select(x => x.RowKey).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+-        var categoryAxis = new CategoryAxis { Position = AxisPosition.Bottom, Angle = rowKeys.Length > 12 ? 45 : 0 };
++        var categoryAxis = new CategoryAxis { Position = AxisPosition.Bottom, Angle = rowKeys.Length > 12 ? 45 : 0, Key = "category" };
+         foreach (var key in rowKeys) categoryAxis.Labels.Add(key);
+         model.Axes.Add(categoryAxis);
+-        model.Axes.Add(new LinearAxis { Position = AxisPosition.Left, Minimum = 0, Title = "Count" });
++        model.Axes.Add(new LinearAxis { Position = AxisPosition.Left, Minimum = 0, Title = "Count", Key = "value" });
+ 
+         if (!hasColumnDimension)
+         {
+-            var series = new ColumnSeries { Title = "Count" };
++            var series = new BarSeries { Title = "Count", XA
