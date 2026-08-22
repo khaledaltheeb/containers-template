@@ -1,0 +1,32 @@
+ey = "category" };
++        foreach (var item in grouped) series.Items.Add(new BarItem(item.Count));
+         model.Series.Add(series);
+         return model;
+     }
+--- a/src/Ari.Desktop/Services/ReportHtmlBuilder.cs
++++ b/src/Ari.Desktop/Services/ReportHtmlBuilder.cs
+@@ -80,11 +80,11 @@
+             {
+                 var fileName = $"chart-{chartIndex++:D3}.png";
+                 var path = Path.Combine(root, fileName);
++                presentation.Plot.Background = OxyPlot.OxyColors.White;
+                 var exporter = new PngExporter
+                 {
+                     Width = Math.Clamp(runtime.Configuration.Reporting.ChartWidthPixels, 800, 4000),
+-                    Height = Math.Clamp(runtime.Configuration.Reporting.ChartHeightPixels, 400, 2400),
+-                    Background = OxyPlot.OxyColors.White
++                    Height = Math.Clamp(runtime.Configuration.Reporting.ChartHeightPixels, 400, 2400)
+                 };
+                 exporter.ExportToFile(presentation.Plot, path);
+                 body.Append("<img class='chart' src='").Append(WebUtility.HtmlEncode(fileName)).Append("' alt='Analysis chart'>");
+--- a/src/Ari.Desktop/Services/ReportOutputService.cs
++++ b/src/Ari.Desktop/Services/ReportOutputService.cs
+@@ -28,7 +28,8 @@
+ 
+     public static void PrintDataView(Window owner, DataView view, string title)
+     {
+-        var headers = view.Table.Columns.Cast<DataColumn>().Select(x => x.ColumnName).ToArray();
++        var table = view.Table ?? throw new InvalidOperationException("DataView is not attached to a DataTable.");
++        var headers = table.Columns.Cast<DataColumn>().Select(x => x.ColumnName).ToArray();
+         var rows = view.Cast<DataRowView>()
+             .Select(row => headers.Select(header => Convert.ToString(row[header]
