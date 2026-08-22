@@ -7,7 +7,7 @@ function Assert-ExitCode([string]$message) {
 
 function Expand-XzPatch([string]$base64Path, [int]$expectedLength, [string]$expectedXzHash, [string]$expectedPatchHash, [string]$outputName) {
     $b64 = (Get-Content $base64Path -Raw) -replace '\s',''
-    if ($b64.Length -ne $expectedLength) { throw "Unexpected Base64 length for $outputName: $($b64.Length)" }
+    if ($b64.Length -ne $expectedLength) { throw "Unexpected Base64 length for ${outputName}: $($b64.Length)" }
     $xz = Join-Path $env:RUNNER_TEMP "$outputName.xz"
     [IO.File]::WriteAllBytes($xz, [Convert]::FromBase64String($b64))
     $xzHash = (Get-FileHash $xz -Algorithm SHA256).Hash.ToLowerInvariant()
