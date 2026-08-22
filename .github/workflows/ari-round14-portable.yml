@@ -115,9 +115,9 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Round 15 patch decompression failed.' }
           $patchHash = (Get-FileHash $patchPath -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($patchHash -ne '85e897206a148a22db4d88bbdc109eb241857e5b80beae2c88679be19048cf4b') { throw "Round 15 patch hash mismatch: $patchHash" }
-          git apply --check $patchPath
+          git apply --check --exclude=manifest.json $patchPath
           if ($LASTEXITCODE -ne 0) { throw 'Round 15 patch preflight failed.' }
-          git apply $patchPath
+          git apply --exclude=manifest.json $patchPath
           if ($LASTEXITCODE -ne 0) { throw 'Round 15 patch application failed.' }
           Write-Host "Round 15 patch verified and applied: $patchHash"
 
