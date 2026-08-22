@@ -102,7 +102,12 @@ jobs:
           Set-Location $env:ARI_ROOT
           if (Test-Path 'scripts/prepare-ocr-data.ps1') {
             & .\scripts\prepare-ocr-data.ps1
-            if ($LASTEXITCODE -ne 0) { throw 'OCR preparation failed.' }
+          }
+          $tess = Join-Path $env:ARI_ROOT 'src\Ari.Desktop\tessdata'
+          foreach ($lang in @('eng.traineddata','ara.traineddata')) {
+            $file = Join-Path $tess $lang
+            if (-not (Test-Path $file)) { throw "OCR language file missing: $lang" }
+            if ((Get-Item $file).Length -lt 100000) { throw "OCR language file is incomplete: $lang" }
           }
 
       - name: Restore and build Release
