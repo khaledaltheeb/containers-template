@@ -1,0 +1,46 @@
+,
+-            EntityId = saved.Id.ToString(),
+-            DetailsJson = System.Text.Json.JsonSerializer.Serialize(new { saved.Name, saved.IsPinned })
+-        }, cancellationToken);
++        await audit.WriteAsync(new AuditEvent(
++            userId,
++            definition.Id.HasValue ? "SavedAnalysis.Updated" : "SavedAnalysis.Created",
++            "SavedAnalysis",
++            saved.Id.ToString(),
++            System.Text.Json.JsonSerializer.Serialize(new { saved.Name, saved.IsPinned })), cancellationToken);
+         return saved;
+ 
+         SavedAnalysisUpsert withName() => new()
+@@ -39,12 +37,6 @@
+     public async Task DeleteAsync(Guid id, Guid userId, CancellationToken cancellationToken = default)
+     {
+         await repository.DeleteAsync(id, cancellationToken);
+-        await audit.WriteAsync(new AuditEvent
+-        {
+-            UserId = userId,
+-            EventType = "SavedAnalysis.Deleted",
+-            EntityType = "SavedAnalysis",
+-            EntityId = id.ToString()
+-        }, cancellationToken);
++        await audit.WriteAsync(new AuditEvent(userId, "SavedAnalysis.Deleted", "SavedAnalysis", id.ToString()), cancellationToken);
+     }
+ }
+--- a/src/Ari.Application/Services/ReportDefinitionService.cs
++++ b/src/Ari.Application/Services/ReportDefinitionService.cs
+@@ -71,13 +71,12 @@
+         };
+ 
+         var saved = await repository.UpsertAsync(normalized, userId, cancellationToken);
+-        await audit.WriteAsync(new AuditEvent
+-        {
+-            UserId = userId,
+-            EventType = report.Id.HasValue ? "Report.Updated" : "Report.Created",
+-            EntityType = "Report",
+-            EntityId = saved.Id.ToString(),
+-            DetailsJson = System.Text.Json.JsonSerializer.Serialize(new
++        await audit.WriteAsync(new AuditEvent(
++            userId,
++            report.Id.HasValue ? "Report.Updated" : "Report.Created",
++            "Report",
++            saved.Id.ToString(),
++            System.Text.Json.JsonSerializer.Serial
