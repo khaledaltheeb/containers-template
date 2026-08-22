@@ -1,0 +1,42 @@
+name: ARI Round16 Release
+
+on:
+  push:
+    branches:
+      - ari-round16-release
+  workflow_dispatch:
+
+jobs:
+  build-test-package:
+    runs-on: windows-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.400
+
+      - name: Reconstruct and validate Round 15 baseline
+        shell: pwsh
+        run: .\.github\scripts\build-ari-round15.ps1
+
+      - name: Apply Round 16 UI and window fixes
+        shell: pwsh
+        run: .\.github\scripts\apply-ari-round16.ps1
+
+      - name: Run harsh synthetic tests and package
+        shell: pwsh
+        run: .\.github\scripts\test-package-ari-round16.ps1
+
+      - name: Upload clean portable artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ARI-Round16-Portable-win-x64
+          path: |
+            ari-round16-portable/**
+            ARI-Round16-Portable-win-x64.zip
+          if-no-files-found: error
+          retention-days: 14
