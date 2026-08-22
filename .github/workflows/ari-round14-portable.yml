@@ -32,7 +32,9 @@ jobs:
             'ari14-final/part-02.txt',
             'ari14-final/part-03.txt',
             'ari14-fix10/p04-0.txt',
-            'ari14-fix5/p04-1-0.txt',
+            'ari14-fix2k/p04-1-0-0.txt',
+            'ari14-fix2k/p04-1-0-1.txt',
+            'ari14-fix2k/p04-1-0-2.txt',
             'ari14-fix5/p04-1-1.txt',
             'ari14-final/part-05.txt',
             'ari14-final/part-06.txt',
@@ -47,8 +49,12 @@ jobs:
             'ari14-fix10/p11-0.txt',
             'ari14-fix10/p11-1.txt',
             'ari14-fix10/p12-0.txt',
-            'ari14-fix5/p12-1-0.txt',
-            'ari14-fix5/p12-1-1.txt',
+            'ari14-fix2k/p12-1-0-0.txt',
+            'ari14-fix2k/p12-1-0-1.txt',
+            'ari14-fix2k/p12-1-0-2.txt',
+            'ari14-fix2k/p12-1-1-0.txt',
+            'ari14-fix2k/p12-1-1-1.txt',
+            'ari14-fix2k/p12-1-1-2.txt',
             'ari14-fix10/p13-0.txt'
           )
           foreach ($p in $paths) {
