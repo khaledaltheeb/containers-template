@@ -86,6 +86,15 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           Set-Location $env:ARI_ROOT
+
+          $infraProject = 'src\Ari.Infrastructure\Ari.Infrastructure.csproj'
+          $infraText = Get-Content $infraProject -Raw
+          $infraUpdated = $infraText -replace '(?m)^\s*<PackageReference Include="System\.Text\.Encoding\.CodePages" Version="[^"]+" />\r?\n?', ''
+          if ($infraUpdated -ne $infraText) {
+            Set-Content $infraProject $infraUpdated -Encoding utf8
+            Write-Host 'Removed redundant System.Text.Encoding.CodePages PackageReference for .NET 10.'
+          }
+
           $props = Get-Content 'Directory.Build.props' -Raw
           if ($props -notmatch '<Version>0\.14\.0</Version>') { throw 'Product Version is not 0.14.0.' }
           if ($props -notmatch '<FileVersion>0\.14\.0\.0</FileVersion>') { throw 'FileVersion is not 0.14.0.0.' }
