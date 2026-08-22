@@ -19,6 +19,7 @@ $main='.\src\Ari.Desktop\Views\MainWindow.xaml';$t=Get-Content $main -Raw
 $t=$t.Replace('Foreground="{StaticResource SidebarMutedBrush}" FontSize="11" FontWeight="SemiBold"','Foreground="{StaticResource SidebarSectionHeaderBrush}" FontSize="11" FontWeight="SemiBold"')
 $t=$t.Replace('<TextBlock x:Name="VersionText" Text="—" Foreground="#6F85A5" FontSize="10" Margin="0,6,0,0"/>','<TextBlock x:Name="VersionText" Text="—" Foreground="{StaticResource SidebarMutedBrush}" FontSize="10" Margin="0,6,0,0"/>')
 Write-Text $main $t
+Replace-Required '.\src\Ari.Infrastructure\Data\SqlSystemMaintenanceRepository.cs' 'COALESCE((SELECT SUM(size)*8192 FROM sys.database_files),0),' 'COALESCE((SELECT SUM(CAST(size AS BIGINT))*CAST(8192 AS BIGINT) FROM sys.database_files),CAST(0 AS BIGINT)),'
 $app='.\src\Ari.Desktop\App.xaml.cs';$t=Get-Content $app -Raw
 $marker='        if (e.Args.Any(x => string.Equals(x, "--self-test", StringComparison.OrdinalIgnoreCase)))'
 $idx=$t.IndexOf($marker,[StringComparison]::Ordinal)
