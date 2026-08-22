@@ -1,0 +1,38 @@
+--- a/src/Ari.Verification/SqlAcceptanceRunner.cs
++++ b/src/Ari.Verification/SqlAcceptanceRunner.cs
+@@ -132,6 +132,7 @@
+         var users = new SqlUserRepository(connections);
+         var hasher = new Pbkdf2PasswordHasher();
+         var password = "Acceptance!Password123";
++        var credential = hasher.Hash(password);
+         var account = new UserAccount
+         {
+             Id = Guid.NewGuid(),
+@@ -139,12 +140,11 @@
+             PersonnelNumber = "AUTH-ACC",
+             Rank = "Test",
+             Username = "auth-acceptance-" + Guid.NewGuid().ToString("N")[..8],
++            PasswordHash = credential.HashBase64,
++            PasswordSalt = credential.SaltBase64,
+             IsActive = true,
+             CreatedAtUtc = DateTimeOffset.UtcNow
+         };
+-        var credential = hasher.Hash(password);
+-        account.PasswordHash = credential.HashBase64;
+-        account.PasswordSalt = credential.SaltBase64;
+         await users.AddAsync(account);
+ 
+         var policy = new SecurityConfiguration { LoginFailureThreshold = 3, LoginLockoutMinutes = 15 };
+--- a/src/Ari.Desktop/Services/ReportHtmlBuilder.cs
++++ b/src/Ari.Desktop/Services/ReportHtmlBuilder.cs
+@@ -103,17 +103,17 @@
+         var headerRule = string.IsNullOrWhiteSpace(report.HeaderText) ? string.Empty : $"@top-center{{content:\"{header}\";font-size:8pt;color:#64748b;}}";
+         var footerRule = string.IsNullOrWhiteSpace(report.FooterText) ? string.Empty : $"@bottom-left{{content:\"{footer}\";font-size:8pt;color:#64748b;}}";
+ 
+-        var html = $"""
+-<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>{H(report.Name)}</title>
++        var html = $$"""
++<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>{{H(report.Name)}}</title>
+ <style>
+-@page{{size:{size} {orientation};margin:17mm 14mm 18mm;{headerRule}{footerRule}{pageNumberRule}}}
+-*{{box-sizing:border-box}}body{{font-family:"Segoe UI",Tahoma,Arial,sans-serif;color:#1f2933;margin:0;direct
