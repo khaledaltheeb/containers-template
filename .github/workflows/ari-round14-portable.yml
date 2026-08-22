@@ -81,49 +81,37 @@ jobs:
           "ARI_ROOT=$($sln.Directory.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           Write-Host "ARI root: $($sln.Directory.FullName)"
 
-      - name: Validate and patch source
+      - name: Apply comprehensive Round 14 source fixes
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           Set-Location $env:ARI_ROOT
 
-          $patchParts = 0..23 | ForEach-Object { "ari14-codefix/part-{0:d2}.patch" -f $_ }
-          $patchPath = Join-Path $env:RUNNER_TEMP 'ari-codefix.patch'
-          $outStream = [IO.File]::Open($patchPath, [IO.FileMode]::Create, [IO.FileAccess]::Write)
-          try {
-            foreach ($part in $patchParts) {
-              $psi = [Diagnostics.ProcessStartInfo]::new()
-              $psi.FileName = 'git'
-              $psi.ArgumentList.Add('cat-file')
-              $psi.ArgumentList.Add('blob')
-              $psi.ArgumentList.Add("HEAD:$part")
-              $psi.UseShellExecute = $false
-              $psi.RedirectStandardOutput = $true
-              $psi.RedirectStandardError = $true
-              $proc = [Diagnostics.Process]::Start($psi)
-              $proc.StandardOutput.BaseStream.CopyTo($outStream)
-              $stderr = $proc.StandardError.ReadToEnd()
-              $proc.WaitForExit()
-              if ($proc.ExitCode -ne 0) { throw "Failed to read patch part $part : $stderr" }
-            }
+          $fixParts = 0..5 | ForEach-Object { "ari14-srcfix-v2/part-{0:d2}.txt" -f $_ }
+          foreach ($part in $fixParts) {
+            if (-not (Test-Path (Join-Path $env:GITHUB_WORKSPACE $part))) { throw "Missing source-fix part: $part" }
           }
-          finally { $outStream.Dispose() }
+          $fixB64 = ($fixParts | ForEach-Object { Get-Content (Join-Path $env:GITHUB_WORKSPACE $_) -Raw }) -join ''
+          $fixB64 = $fixB64 -replace '\s',''
+          if ($fixB64.Length -ne 10512) { throw "Unexpected source-fix Base64 length: $($fixB64.Length)" }
+          $fixXz = Join-Path $env:RUNNER_TEMP 'ari-round14-src-fixes.patch.xz'
+          [IO.File]::WriteAllBytes($fixXz, [Convert]::FromBase64String($fixB64))
+          $fixXzHash = (Get-FileHash $fixXz -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($fixXzHash -ne '0f5ada5b19f11ec6ae22fdf0aeddbc56577ac7ccc5747a488c788e334bbeed4d') {
+            throw "Compressed source-fix SHA256 mismatch: $fixXzHash"
+          }
+          $patchPath = Join-Path $env:RUNNER_TEMP 'ari-round14-src-fixes.patch'
+          python -c "import lzma,sys; open(sys.argv[2],'wb').write(lzma.open(sys.argv[1],'rb').read())" $fixXz $patchPath
+          if ($LASTEXITCODE -ne 0) { throw 'Source-fix decompression failed.' }
           $patchHash = (Get-FileHash $patchPath -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($patchHash -ne '3376aefe086e1897c5bdaa634171195a7817dde18275a3da2a88e0b923e24376') {
-            throw "ARI code patch SHA256 mismatch: $patchHash"
+          if ($patchHash -ne '4b8f1e36b7160b57a0bae0501c2af303a745454b91e4fa7f7373645792213d43') {
+            throw "Source-fix patch SHA256 mismatch: $patchHash"
           }
           git apply --check $patchPath
-          if ($LASTEXITCODE -ne 0) { throw 'ARI code patch preflight failed.' }
+          if ($LASTEXITCODE -ne 0) { throw 'Source-fix patch preflight failed.' }
           git apply $patchPath
-          if ($LASTEXITCODE -ne 0) { throw 'ARI code patch failed.' }
-
-          $infraProject = 'src\Ari.Infrastructure\Ari.Infrastructure.csproj'
-          $infraText = Get-Content $infraProject -Raw
-          $infraUpdated = $infraText -replace '(?m)^\s*<PackageReference Include="System\.Text\.Encoding\.CodePages" Version="[^"]+" />\r?\n?', ''
-          if ($infraUpdated -ne $infraText) {
-            Set-Content $infraProject $infraUpdated -Encoding utf8
-            Write-Host 'Removed redundant System.Text.Encoding.CodePages PackageReference for .NET 10.'
-          }
+          if ($LASTEXITCODE -ne 0) { throw 'Source-fix patch application failed.' }
+          Write-Host "Comprehensive source-fix applied: $patchHash"
 
           $props = Get-Content 'Directory.Build.props' -Raw
           if ($props -notmatch '<Version>0\.14\.0</Version>') { throw 'Product Version is not 0.14.0.' }
