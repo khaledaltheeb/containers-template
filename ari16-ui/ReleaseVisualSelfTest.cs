@@ -2,7 +2,6 @@ using System.Data;
 using System.Reflection;
 using Ari.Core.Domain;
 using OxyPlot;
-using OxyPlot.Series;
 
 namespace Ari.Desktop.Services;
 
@@ -22,9 +21,9 @@ public static class ReleaseVisualSelfTest
         var buildTable = typeof(AnalysisPresentationService).GetMethod("BuildTable", BindingFlags.NonPublic | BindingFlags.Static)
             ?? throw new InvalidOperationException("BuildTable was not found.");
 
-        VerifyPlot(buildPlot, cells, AnalysisVisualizationKind.Columns, typeof(ColumnSeries));
-        VerifyPlot(buildPlot, cells, AnalysisVisualizationKind.Line, typeof(LineSeries));
-        VerifyPlot(buildPlot, cells, AnalysisVisualizationKind.Heatmap, typeof(HeatMapSeries));
+        VerifyPlot(buildPlot, cells, AnalysisVisualizationKind.Columns, "ColumnSeries");
+        VerifyPlot(buildPlot, cells, AnalysisVisualizationKind.Line, "LineSeries");
+        VerifyPlot(buildPlot, cells, AnalysisVisualizationKind.Heatmap, "HeatMapSeries");
 
         var table = (DataTable?)buildTable.Invoke(null, new object?[] { cells, true })
             ?? throw new InvalidOperationException("Analysis table renderer returned null.");
@@ -72,12 +71,12 @@ public static class ReleaseVisualSelfTest
         Console.WriteLine("Visual smoke: columns, line, heatmap, table, multi-series trend PNG = PASS");
     }
 
-    private static void VerifyPlot(MethodInfo buildPlot, IReadOnlyList<AnalysisCell> cells, AnalysisVisualizationKind kind, Type expectedSeriesType)
+    private static void VerifyPlot(MethodInfo buildPlot, IReadOnlyList<AnalysisCell> cells, AnalysisVisualizationKind kind, string expectedSeriesTypeName)
     {
         var model = (PlotModel?)buildPlot.Invoke(null, new object?[] { cells, kind, true })
             ?? throw new InvalidOperationException($"{kind} plot renderer returned null.");
-        if (model.Series.Count == 0 || !model.Series.Any(expectedSeriesType.IsInstanceOfType))
-            throw new InvalidOperationException($"{kind} plot did not contain {expectedSeriesType.Name}.");
+        if (model.Series.Count == 0 || !model.Series.Any(s => string.Equals(s.GetType().Name, expectedSeriesTypeName, StringComparison.Ordinal)))
+            throw new InvalidOperationException($"{kind} plot did not contain {expectedSeriesTypeName}.");
         VerifyPng(model, kind.ToString());
     }
 
@@ -92,5 +91,3 @@ public static class ReleaseVisualSelfTest
             throw new InvalidOperationException($"{name} PNG output is invalid or unexpectedly small ({bytes.Length} bytes).");
     }
 }
-
-// Round 16 PR validation trigger.
