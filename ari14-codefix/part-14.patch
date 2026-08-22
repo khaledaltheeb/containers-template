@@ -1,0 +1,28 @@
+--- a/src/Ari.Desktop/Services/AnalysisPresentationService.cs
++++ b/src/Ari.Desktop/Services/AnalysisPresentationService.cs
+@@ -130,7 +130,8 @@
+     public static string PlotToDataUri(PlotModel plot, int width = 1200, int height = 650)
+     {
+         using var stream = new MemoryStream();
+-        var exporter = new PngExporter { Width = width, Height = height, Background = OxyColors.White };
++        plot.Background = OxyColors.White;
++        var exporter = new PngExporter { Width = width, Height = height };
+         exporter.Export(plot, stream);
+         return "data:image/png;base64," + Convert.ToBase64String(stream.ToArray());
+     }
+@@ -281,28 +282,28 @@
+     private static PlotModel BuildColumnChart(PlotModel model, IReadOnlyList<AnalysisCell> cells, bool hasColumnDimension)
+     {
+         var rows = cells.Select(x => x.RowKey).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+-        var axis = new CategoryAxis { Position = AxisPosition.Bottom, Angle = rows.Length > 12 ? 45 : 0 };
++        var axis = new CategoryAxis { Position = AxisPosition.Bottom, Angle = rows.Length > 12 ? 45 : 0, Key = "category" };
+         foreach (var row in rows) axis.Labels.Add(row);
+         model.Axes.Add(axis);
+-        model.Axes.Add(new LinearAxis { Position = AxisPosition.Left, Minimum = 0, Title = "Count" });
++        model.Axes.Add(new LinearAxis { Position = AxisPosition.Left, Minimum = 0, Title = "Count", Key = "value" });
+         if (!hasColumnDimension)
+         {
+-            var series = new ColumnSeries { Title = "Count" };
++            var series = new BarSeries { Title = "Count", XAxisKey = "value", YAxisKey = "category" };
+             var lookup = cells.ToDictionary(x => x.RowKey, StringComparer.OrdinalIgnoreCase);
+-            foreach (var row in rows) seri
