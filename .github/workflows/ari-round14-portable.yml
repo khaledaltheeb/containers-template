@@ -81,11 +81,41 @@ jobs:
           "ARI_ROOT=$($sln.Directory.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           Write-Host "ARI root: $($sln.Directory.FullName)"
 
-      - name: Validate source and version
+      - name: Validate and patch source
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           Set-Location $env:ARI_ROOT
+
+          $patchParts = 0..6 | ForEach-Object { "ari14-codefix/part-{0:d2}.patch" -f $_ }
+          $patchPath = Join-Path $env:RUNNER_TEMP 'ari-audit-fix.patch'
+          $outStream = [IO.File]::Open($patchPath, [IO.FileMode]::Create, [IO.FileAccess]::Write)
+          try {
+            foreach ($part in $patchParts) {
+              $psi = [Diagnostics.ProcessStartInfo]::new()
+              $psi.FileName = 'git'
+              $psi.ArgumentList.Add('cat-file')
+              $psi.ArgumentList.Add('blob')
+              $psi.ArgumentList.Add("HEAD:$part")
+              $psi.UseShellExecute = $false
+              $psi.RedirectStandardOutput = $true
+              $psi.RedirectStandardError = $true
+              $proc = [Diagnostics.Process]::Start($psi)
+              $proc.StandardOutput.BaseStream.CopyTo($outStream)
+              $stderr = $proc.StandardError.ReadToEnd()
+              $proc.WaitForExit()
+              if ($proc.ExitCode -ne 0) { throw "Failed to read patch part $part : $stderr" }
+            }
+          }
+          finally { $outStream.Dispose() }
+          $patchHash = (Get-FileHash $patchPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($patchHash -ne '395e255f7cb66b7c0a37c4f9d75165c814ecfc734e7ec3e4e1fca6bc911115ac') {
+            throw "ARI code patch SHA256 mismatch: $patchHash"
+          }
+          git apply --check $patchPath
+          if ($LASTEXITCODE -ne 0) { throw 'ARI code patch preflight failed.' }
+          git apply $patchPath
+          if ($LASTEXITCODE -ne 0) { throw 'ARI code patch failed.' }
 
           $infraProject = 'src\Ari.Infrastructure\Ari.Infrastructure.csproj'
           $infraText = Get-Content $infraProject -Raw
