@@ -1,0 +1,27 @@
+Views/LoginWindow.xaml.cs
++++ b/src/Ari.Desktop/Views/LoginWindow.xaml.cs
+@@ -41,7 +41,7 @@
+             }
+ 
+             var shell = new MainWindow(_runtime, result.User);
+-            Application.Current.MainWindow = shell;
++            System.Windows.Application.Current.MainWindow = shell;
+             shell.Show();
+             Close();
+         }
+--- a/src/Ari.Desktop/Views/MainWindow.xaml.cs
++++ b/src/Ari.Desktop/Views/MainWindow.xaml.cs
+@@ -85,7 +85,7 @@
+     {
+         try
+         {
+-            var dashboards = await _runtime.Dashboards.ListAsync();
++            var dashboards = await _runtime.Dashboards.GetAllAsync();
+             var dashboard = dashboards.FirstOrDefault(x => x.IsDefault) ?? dashboards.FirstOrDefault();
+             if (dashboard is null)
+             {
+--- a/src/Ari.Desktop/GlobalUsings.cs
++++ b/src/Ari.Desktop/GlobalUsings.cs
+@@ -0,0 +1,2 @@
++global using System.IO;
++global using System.Windows.Controls;
