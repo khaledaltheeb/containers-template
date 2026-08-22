@@ -92,6 +92,18 @@ Assert-ExitCode 'LocalDB Full-Text hotfix preflight failed.'
 git apply $fullTextPatch
 Assert-ExitCode 'LocalDB Full-Text hotfix application failed.'
 
+Write-Host '== Apply ReportItems schema-order compatibility hotfix =='
+$reportItemsPatch = Expand-XzPatch `
+    (Join-Path $env:GITHUB_WORKSPACE 'ari15-hotfix\reportitems-schema.patch.xz.b64') `
+    1164 `
+    '92443987197f62829a6246b9cc2d8def315fc862b2da6c83856447c156c0c30d' `
+    'c62df8069326b0812f84d672b4ee0f8894dc9cbc18ba75fd462a6c04c2e70014' `
+    'ari-reportitems-schema.patch'
+git apply --check $reportItemsPatch
+Assert-ExitCode 'ReportItems schema-order hotfix preflight failed.'
+git apply $reportItemsPatch
+Assert-ExitCode 'ReportItems schema-order hotfix application failed.'
+
 Write-Host '== Download and authenticate Microsoft LocalDB runtime =='
 $runtimeDir = Join-Path $ariRoot 'src\Ari.Desktop\Runtime'
 New-Item -ItemType Directory -Force -Path $runtimeDir | Out-Null
