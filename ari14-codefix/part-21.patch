@@ -1,0 +1,33 @@
+  model.Axes.Add(new LinearAxis { Position = AxisPosition.Left, Minimum = 0, Title = "Repeat count", Key = "value" });
++        var series = new BarSeries { Title = "Repeats", XAxisKey = "value", YAxisKey = "category" };
++        foreach (var item in grouped) series.Items.Add(new BarItem(item.Count));
+         model.Series.Add(series);
+         return model;
+     }
+--- a/src/Ari.Desktop/Views/SystemMaintenanceWindow.xaml.cs
++++ b/src/Ari.Desktop/Views/SystemMaintenanceWindow.xaml.cs
+@@ -92,10 +92,10 @@
+             StatusText.Text="جاري إنشاء نقطة رجوع ثم الاستعادة والتحقق...";
+             await _runtime.SystemMaintenance.RestoreBackupBundleAsync(dialog.FileName,_user.Id);
+             MessageBox.Show("اكتملت الاستعادة والتحقق. سيغلق البرنامج الآن ويجب تشغيله من جديد.","ARI",MessageBoxButton.OK,MessageBoxImage.Information);
+-            Application.Current.Shutdown(0);
++            System.Windows.Application.Current.Shutdown(0);
+         }
+         catch(Exception ex){ApplicationErrorService.Show(this, "فشل الاستعادة", ex);}
+-        finally{if(Application.Current is not null)IsEnabled=true;}
++        finally{if(System.Windows.Application.Current is not null)IsEnabled=true;}
+     }
+     private static void EnsureExclusiveLocalRestore()
+     {
+--- a/src/Ari.Desktop/Views/FirstRunWindow.xaml.cs
++++ b/src/Ari.Desktop/Views/FirstRunWindow.xaml.cs
+@@ -106,7 +106,7 @@
+             await _firstRun.MarkSetupCompleteAsync();
+ 
+             var login = new LoginWindow(_runtime);
+-            Application.Current.MainWindow = login;
++            System.Windows.Application.Current.MainWindow = login;
+             login.Show();
+             Close();
+         }
+--- a/src/Ari.Desktop/
