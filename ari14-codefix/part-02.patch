@@ -1,0 +1,37 @@
+ed", EntityType = "Dashboard", EntityId = id.ToString() }, cancellationToken);
++        await audit.WriteAsync(new AuditEvent(userId, "Dashboard.Deleted", "Dashboard", id.ToString()), cancellationToken);
+     }
+ }
+--- a/src/Ari.Application/Services/PdfOcrReviewService.cs
++++ b/src/Ari.Application/Services/PdfOcrReviewService.cs
+@@ -22,13 +22,11 @@
+         if (note?.Length > 1000) throw new InvalidOperationException("ملاحظة المراجعة يجب ألا تتجاوز 1000 حرف.");
+ 
+         await repository.ApplyManualOcrCorrectionAsync(pageId, correctedText, userId, note, cancellationToken);
+-        await audit.WriteAsync(new AuditEvent
+-        {
+-            UserId = userId,
+-            EventType = "PDF.OcrCorrected",
+-            EntityType = "PdfPage",
+-            EntityId = pageId.ToString(),
+-            DetailsJson = System.Text.Json.JsonSerializer.Serialize(new { TextLength = correctedText.Length, Note = note })
+-        }, cancellationToken);
++        await audit.WriteAsync(new AuditEvent(
++            userId,
++            "PDF.OcrCorrected",
++            "PdfPage",
++            pageId.ToString(),
++            System.Text.Json.JsonSerializer.Serialize(new { TextLength = correctedText.Length, Note = note })), cancellationToken);
+     }
+ }
+--- a/src/Ari.Application/Services/SavedAnalysisService.cs
++++ b/src/Ari.Application/Services/SavedAnalysisService.cs
+@@ -16,14 +16,12 @@
+         if (string.IsNullOrWhiteSpace(definition.Name)) throw new InvalidOperationException("اسم التحليل مطلوب.");
+         if (definition.Name.Trim().Length > 200) throw new InvalidOperationException("اسم التحليل طويل جدًا.");
+         var saved = await repository.UpsertAsync(withName(), userId, cancellationToken);
+-        await audit.WriteAsync(new AuditEvent
+-        {
+-            UserId = userId,
+-            EventType = definition.Id.HasValue ? "SavedAnalysis.Updated" : "SavedAnalysis.Created",
+-            EntityType = "SavedAnalysis"
