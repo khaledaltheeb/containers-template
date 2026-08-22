@@ -1,0 +1,30 @@
+xisKey = "value", YAxisKey = "category" };
+             var lookup = cells.ToDictionary(x => x.RowKey, StringComparer.OrdinalIgnoreCase);
+-            foreach (var row in rowKeys) series.Items.Add(new ColumnItem(lookup.TryGetValue(row, out var item) ? item.Value : 0));
++            foreach (var row in rowKeys) series.Items.Add(new BarItem(lookup.TryGetValue(row, out var item) ? item.Value : 0));
+             model.Series.Add(series);
+             return model;
+         }
+ 
+         foreach (var column in cells.Select(x => x.ColumnKey ?? "(غير محدد)").Distinct(StringComparer.OrdinalIgnoreCase))
+         {
+-            var series = new ColumnSeries { Title = column };
++            var series = new BarSeries { Title = column, XAxisKey = "value", YAxisKey = "category" };
+             foreach (var row in rowKeys)
+             {
+                 var value = cells.FirstOrDefault(x => string.Equals(x.RowKey, row, StringComparison.OrdinalIgnoreCase)
+                     && string.Equals(x.ColumnKey ?? "(غير محدد)", column, StringComparison.OrdinalIgnoreCase))?.Value ?? 0;
+-                series.Items.Add(new ColumnItem(value));
++                series.Items.Add(new BarItem(value));
+             }
+             model.Series.Add(series);
+         }
+@@ -473,16 +473,16 @@
+     private static PlotModel BuildParetoPlot(IReadOnlyList<ParetoItem> items)
+     {
+         var model = new PlotModel { Title = "Pareto Analysis" };
+-        var categories = new CategoryAxis { Position = AxisPosition.Bottom, Angle = items.Count > 12 ? 45 : 0 };
++        var categories = new CategoryAxis { Position = AxisPosition.Bottom, Angle = items.Count > 12 ? 45 : 0, Key = "category" };
+         foreach (var item in items) categories.Labels.Add(item.Key);
+         model.Axes.Add(categories);
+ 
