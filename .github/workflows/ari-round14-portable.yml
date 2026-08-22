@@ -87,7 +87,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           Set-Location $env:ARI_ROOT
 
-          $patchParts = 0..11 | ForEach-Object { "ari14-codefix/part-{0:d2}.patch" -f $_ }
+          $patchParts = 0..12 | ForEach-Object { "ari14-codefix/part-{0:d2}.patch" -f $_ }
           $patchPath = Join-Path $env:RUNNER_TEMP 'ari-codefix.patch'
           $outStream = [IO.File]::Open($patchPath, [IO.FileMode]::Create, [IO.FileAccess]::Write)
           try {
@@ -109,7 +109,7 @@ jobs:
           }
           finally { $outStream.Dispose() }
           $patchHash = (Get-FileHash $patchPath -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($patchHash -ne 'f6fd47dced7e202ad51ded04b356f63de693e0589a0ffa5f2b20bb1aa0207f26') {
+          if ($patchHash -ne '3ed65606cfe492002f8006cf284932f8b1a2e03fe9d811b967336bf98cfc8ab3') {
             throw "ARI code patch SHA256 mismatch: $patchHash"
           }
           git apply --check $patchPath
