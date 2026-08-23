@@ -84,11 +84,11 @@ $loginText=Get-Content $login -Raw
 
 if([regex]::IsMatch($xaml,$implicitTextBlock)){throw 'Implicit TextBlock foreground override still exists.'}
 if($xaml -notmatch 'x:Key="NavButtonStyle"'){throw 'NavButtonStyle is missing.'}
-if($xaml -notmatch 'Foreground="\{StaticResource SidebarTextBrush\}"'){throw 'Normal sidebar text is not bound to SidebarTextBrush.'}
+if($xaml -notmatch 'Property="Foreground" Value="\{StaticResource SidebarTextBrush\}"'){throw 'Normal sidebar text is not bound to SidebarTextBrush.'}
 if($xaml -notmatch 'x:Key="NavPrimaryButtonStyle"'){throw 'NavPrimaryButtonStyle is missing.'}
-if($xaml -notmatch 'Foreground="White"'){throw 'Active sidebar foreground is not white.'}
+if($xaml -notmatch 'Property="Foreground" Value="White"'){throw 'Active sidebar foreground is not white.'}
 if($xaml -notmatch 'TargetName="NavChrome" Property="Opacity" Value="0.85"'){throw 'Disabled sidebar opacity was not raised.'}
-if($xaml -notmatch 'Foreground" Value="\{StaticResource SidebarMutedBrush\}"'){throw 'Disabled sidebar text does not use the readable muted brush.'}
+if($xaml -notmatch 'Property="Foreground" Value="\{StaticResource SidebarMutedBrush\}"'){throw 'Disabled sidebar text does not use the readable muted brush.'}
 
 $sidebar=Get-BrushColor $xaml 'SidebarBrush'
 $normal=Get-BrushColor $xaml 'SidebarTextBrush'
