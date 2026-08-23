@@ -30,6 +30,10 @@ jobs:
         shell: pwsh
         run: .\.github\scripts\apply-ari-round16.ps1
 
+      - name: Fix and verify sidebar contrast
+        shell: pwsh
+        run: .\.github\scripts\apply-ari-sidebar-contrast-hotfix.ps1
+
       - name: Run harsh synthetic tests and package
         shell: pwsh
         run: .\.github\scripts\test-package-ari-round16.ps1
