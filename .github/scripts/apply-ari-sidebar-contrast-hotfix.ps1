@@ -11,13 +11,11 @@ function Relative-Luminance([string]$hex)
 {
     $h=$hex.TrimStart('#')
     if($h.Length-ne 6){throw "Invalid RGB color: $hex"}
-    $values=@(
-        [Convert]::ToInt32($h.Substring(0,2),16)/255.0,
-        [Convert]::ToInt32($h.Substring(2,2),16)/255.0,
-        [Convert]::ToInt32($h.Substring(4,2),16)/255.0
-    )
+    [double]$r=([Convert]::ToInt32($h.Substring(0,2),16))/255.0
+    [double]$g=([Convert]::ToInt32($h.Substring(2,2),16))/255.0
+    [double]$b=([Convert]::ToInt32($h.Substring(4,2),16))/255.0
     $linear=@()
-    foreach($v in $values)
+    foreach($v in @($r,$g,$b))
     {
         if($v-le 0.04045){$linear+=($v/12.92)}
         else{$linear+=[Math]::Pow((($v+0.055)/1.055),2.4)}
@@ -54,10 +52,6 @@ $main='.\src\Ari.Desktop\Views\MainWindow.xaml'
 Write-Host '== Sidebar contrast hotfix =='
 $xaml=Get-Content $app -Raw
 
-# The implicit TextBlock foreground setter outranks inherited button foregrounds.
-# Removing that setter lets sidebar button content inherit the high-contrast
-# foreground supplied by NavButtonStyle/NavPrimaryButtonStyle while ordinary
-# page text continues to inherit TextPrimaryBrush from Window.
 $implicitTextBlock='(?ms)<Style\s+TargetType="TextBlock">\s*<Setter\s+Property="Foreground"\s+Value="\{StaticResource TextPrimaryBrush\}"\s*/>\s*</Style>'
 if(-not [regex]::IsMatch($xaml,$implicitTextBlock)){throw 'Implicit TextBlock foreground style was not found.'}
 $xaml=[regex]::Replace($xaml,$implicitTextBlock,'<Style TargetType="TextBlock"/>',1)
