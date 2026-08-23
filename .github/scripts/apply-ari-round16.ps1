@@ -21,9 +21,25 @@ $t=$t.Replace('<TextBlock x:Name="VersionText" Text="—" Foreground="#6F85A5" F
 Write-Text $main $t
 $maintenance='.\src\Ari.Infrastructure\Data\SqlSystemMaintenanceRepository.cs'
 Replace-Required $maintenance 'COALESCE((SELECT SUM(size)*8192 FROM sys.database_files),0),' 'COALESCE((SELECT SUM(CAST(size AS BIGINT))*CAST(8192 AS BIGINT) FROM sys.database_files),CAST(0 AS BIGINT)),'
-$oldBackup='        if(string.IsNullOrWhiteSpace(diagnostic.DatabaseBackupPath)) throw new InvalidOperationException("SQL Server لم يُرجع مسار النسخ الاحتياطي الافتراضي.");'+[Environment]::NewLine+'        var path=Path.Combine(diagnostic.DatabaseBackupPath,$"ARI-{DateTime.UtcNow:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}.bak");'
-$newBackup='        var backupDirectory=diagnostic.DatabaseBackupPath;'+[Environment]::NewLine+'        if(string.IsNullOrWhiteSpace(backupDirectory))'+[Environment]::NewLine+'        {'+[Environment]::NewLine+'            await using var fallbackConnection=connections.CreateApplicationConnection(); await fallbackConnection.OpenAsync(cancellationToken);'+[Environment]::NewLine+'            await using var fallbackCommand=fallbackConnection.CreateCommand(); fallbackCommand.CommandText="SELECT TOP (1) physical_name FROM sys.database_files WHERE type=0 ORDER BY file_id";'+[Environment]::NewLine+'            var physical=Convert.ToString(await fallbackCommand.ExecuteScalarAsync(cancellationToken));'+[Environment]::NewLine+'            backupDirectory=string.IsNullOrWhiteSpace(physical)?string.Empty:Path.GetDirectoryName(physical)??string.Empty;'+[Environment]::NewLine+'        }'+[Environment]::NewLine+'        if(string.IsNullOrWhiteSpace(backupDirectory)) throw new InvalidOperationException("تعذر تحديد مسار آمن للنسخ الاحتياطي لقاعدة البيانات.");'+[Environment]::NewLine+'        var path=Path.Combine(backupDirectory,$"ARI-{DateTime.UtcNow:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}.bak");'
-Replace-Required $maintenance $oldBackup $newBackup
+$mt=Get-Content $maintenance -Raw
+$pattern='(?ms)^(?<indent>[ \t]*)if\s*\(\s*string\.IsNullOrWhiteSpace\((?<diag>[A-Za-z_][A-Za-z0-9_]*)\.DatabaseBackupPath\)\s*\)\s*throw[^;\r\n]+;\s*\r?\n(?<indent2>[ \t]*)var\s+(?<pathvar>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*Path\.Combine\(\k<diag>\.DatabaseBackupPath,(?<tail>[^\r\n]+)\);'
+$rx=[regex]::new($pattern)
+$m=$rx.Match($mt)
+if(-not $m.Success){
+    Write-Host 'Backup fallback target lines:'
+    Get-Content $maintenance | Select-String -Pattern 'DatabaseBackupPath|Path.Combine|InvalidOperationException' | ForEach-Object { Write-Host ("{0}: {1}" -f $_.LineNumber,$_.Line) }
+    throw 'Could not locate LocalDB backup-path guard block.'
+}
+$nl=[Environment]::NewLine
+$replacement=$m.Groups['indent'].Value+'var backupDirectory = '+$m.Groups['diag'].Value+'.DatabaseBackupPath;'+$nl+
+    $m.Groups['indent'].Value+'if (string.IsNullOrWhiteSpace(backupDirectory))'+$nl+
+    $m.Groups['indent'].Value+'{'+$nl+
+    $m.Groups['indent'].Value+'    backupDirectory = Path.Combine(Path.GetTempPath(), "ARI-Backups");'+$nl+
+    $m.Groups['indent'].Value+'    Directory.CreateDirectory(backupDirectory);'+$nl+
+    $m.Groups['indent'].Value+'}'+$nl+
+    $m.Groups['indent2'].Value+'var '+$m.Groups['pathvar'].Value+' = Path.Combine(backupDirectory,'+$m.Groups['tail'].Value+');'
+$mt=$rx.Replace($mt,$replacement,1)
+Write-Text $maintenance $mt
 $app='.\src\Ari.Desktop\App.xaml.cs';$t=Get-Content $app -Raw
 $marker='        if (e.Args.Any(x => string.Equals(x, "--self-test", StringComparison.OrdinalIgnoreCase)))'
 $idx=$t.IndexOf($marker,[StringComparison]::Ordinal)
