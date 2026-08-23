@@ -1,0 +1,49 @@
+ize(new
+             {
+                 saved.Name,
+                 ItemCount = saved.Items.Count,
+@@ -86,15 +85,14 @@
+                 saved.DocumentNumber,
+                 saved.Revision,
+                 HasLogo = saved.LogoImage is { Length: > 0 }
+-            })
+-        }, cancellationToken);
++            })), cancellationToken);
+         return saved;
+     }
+ 
+     public async Task DeleteAsync(Guid id, Guid userId, CancellationToken cancellationToken = default)
+     {
+         await repository.DeleteAsync(id, cancellationToken);
+-        await audit.WriteAsync(new AuditEvent { UserId = userId, EventType = "Report.Deleted", EntityType = "Report", EntityId = id.ToString() }, cancellationToken);
++        await audit.WriteAsync(new AuditEvent(userId, "Report.Deleted", "Report", id.ToString()), cancellationToken);
+     }
+ 
+     private static bool IsSupportedImage(byte[] bytes)
+--- a/src/Ari.Application/Services/SystemMaintenanceService.cs
++++ b/src/Ari.Application/Services/SystemMaintenanceService.cs
+@@ -141,13 +141,12 @@
+ 
+             File.Move(tempZip, destinationZip, true);
+             var info = new FileInfo(destinationZip);
+-            await WriteAuditWithFallbackAsync(new AuditEvent
+-            {
+-                UserId = userId,
+-                EventType = "System.BackupCreated",
+-                EntityType = "Backup",
+-                EntityId = Path.GetFileName(destinationZip),
+-                DetailsJson = JsonSerializer.Serialize(new
++            await WriteAuditWithFallbackAsync(new AuditEvent(
++                userId,
++                "System.BackupCreated",
++                "Backup",
++                Path.GetFileName(destinationZip),
++                JsonSerializer.Serialize(new
+                 {
+                     destinationZip,
+                     info.Length,
+@@ -155,8 +154,7 @@
+                     productVersion = CurrentProductVersion,
+                     schemaVersion,
+                     fileCount = files.Count
+-             

@@ -1,0 +1,10 @@
+rror = restoreError.Message,
+                     databaseRollbackAttempted = databaseRestoreAttempted,
+                     rollbackSqlBackupPreserved = preserveRollbackSqlBackup ? rollbackSqlBackup : null,
+                     rollbackErrors = rollbackErrors.Select(x => x.Message).ToArray()
+-                })
+-            }, CancellationToken.None);
++                })), CancellationToken.None);
+ 
+             if (rollbackErrors.Count > 0)
+             {

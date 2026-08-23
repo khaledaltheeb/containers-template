@@ -1,0 +1,24 @@
+--- a/src/Ari.Desktop/Services/ReportHtmlBuilder.cs
++++ b/src/Ari.Desktop/Services/ReportHtmlBuilder.cs
+@@ -103,17 +103,17 @@
+         var headerRule = string.IsNullOrWhiteSpace(report.HeaderText) ? string.Empty : $"@top-center{{content:\"{header}\";font-size:8pt;color:#64748b;}}";
+         var footerRule = string.IsNullOrWhiteSpace(report.FooterText) ? string.Empty : $"@bottom-left{{content:\"{footer}\";font-size:8pt;color:#64748b;}}";
+ 
+-        var html = $$"""
+-<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>{{H(report.Name)}}</title>
++        var html = $$$"""
++<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>{{{H(report.Name)}}}</title>
+ <style>
+-@page{size:{{size}} {{orientation}};margin:17mm 14mm 18mm;{{headerRule}}{{footerRule}}{{pageNumberRule}}}
++@page{size:{{{size}}} {{{orientation}}};margin:17mm 14mm 18mm;{{{headerRule}}}{{{footerRule}}}{{{pageNumberRule}}}}
+ *{box-sizing:border-box}body{font-family:"Segoe UI",Tahoma,Arial,sans-serif;color:#1f2933;margin:0;direction:rtl;background:#fff;font-size:10.5pt}
+ .cover{min-height:58mm;border-bottom:2px solid #334155;padding:8mm 2mm 8mm;margin-bottom:8mm;position:relative}.logo{display:block;max-width:42mm;max-height:24mm;object-fit:contain;margin:0 0 6mm auto}.classification{display:inline-block;border:1px solid #475569;padding:1.5mm 3mm;border-radius:3px;font-weight:700;font-size:9pt;margin-bottom:4mm}
+ h1{font-size:26pt;margin:0 0 4mm}h2{font-size:16pt;margin:4mm 0}.meta,.status,.description{color:#52606d}.doc-meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2mm 7mm;margin:5mm 0;padding:4mm;border:1px solid #d9e0e6;background:#f8fafc}.doc-meta div{display:flex;gap:2mm}.doc-meta b{min-width:30mm;color:#334155}.notes{margin-top:7mm;padding:4mm;border:1px solid #ccd3d9;border-radius:4px;white-space:normal}
+ .analysis{break-before:auto;break-inside:avoid-page;margin:0 0 9mm}.analysis+.analysis{break-before:page}.evidence blockquote{margin:4mm 0 0;padding:4mm;border-right:4px solid #64748b;background:#f8fafc;white-space:normal;line-height:1.8}.provenance{font-size:9pt;color:#52606d;background:#f4f6f8;padding:2.5mm 3mm;border-radius:4px}.filters{font-size:9pt;background:#f4f6f8;padding:3mm 4mm;border-radius:4px;margin:3mm 0}.chart{display:block;width:100%;max-height:150mm;object-fit:contain;margin:4mm auto}
+ table{border-collapse:collapse;width:100%;font-size:8.5pt;margin-top:4mm;direction:rtl}thead{display:table-header-group}th,td{border:1px solid #cbd2d9;padding:2mm;vertical-align:top;word-break:break-word}th{background:#eef1f4;font-weight:600}tr{break-inside:avoid}.error{padding:4mm;border:1px solid #a61b1b;color:#7b1313;background:#fff5f5}.table-limit{margin-top:2mm;padding:2.5mm 3mm;background:#fff7ed;border:1px solid #fdba74;color:#9a3412;font-size:9pt;font-weight:600}
+ @media print{.analysis{break-inside:auto}}
+-</style></head><body>{{body}}</body></html>
++</style></head><body>{{{body}}}</body></html>
+ """;
+         var htmlPath = Path.Combine(root, "report.html");
+         await File.WriteAllTextAsync(htmlPath, html, new UTF8Encoding(false), cancellationToken);

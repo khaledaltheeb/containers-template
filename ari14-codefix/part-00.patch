@@ -1,0 +1,39 @@
+--- a/src/Ari.Application/Services/EvidenceClipService.cs
++++ b/src/Ari.Application/Services/EvidenceClipService.cs
+@@ -30,20 +30,18 @@
+             SourceLocator = string.IsNullOrWhiteSpace(clip.SourceLocator) ? null : clip.SourceLocator.Trim(),
+             Excerpt = excerpt
+         }, userId, cancellationToken);
+-        await audit.WriteAsync(new AuditEvent
+-        {
+-            UserId = userId,
+-            EventType = "Evidence.Created",
+-            EntityType = "EvidenceClip",
+-            EntityId = saved.Id.ToString(),
+-            DetailsJson = System.Text.Json.JsonSerializer.Serialize(new { saved.Title, saved.EntityKind, saved.SourceFileName, saved.SourceLocator })
+-        }, cancellationToken);
++        await audit.WriteAsync(new AuditEvent(
++            userId,
++            "Evidence.Created",
++            "EvidenceClip",
++            saved.Id.ToString(),
++            System.Text.Json.JsonSerializer.Serialize(new { saved.Title, saved.EntityKind, saved.SourceFileName, saved.SourceLocator })), cancellationToken);
+         return saved;
+     }
+ 
+     public async Task DeleteAsync(Guid id, Guid userId, CancellationToken cancellationToken = default)
+     {
+         await repository.DeleteAsync(id, cancellationToken);
+-        await audit.WriteAsync(new AuditEvent { UserId = userId, EventType = "Evidence.Deleted", EntityType = "EvidenceClip", EntityId = id.ToString() }, cancellationToken);
++        await audit.WriteAsync(new AuditEvent(userId, "Evidence.Deleted", "EvidenceClip", id.ToString()), cancellationToken);
+     }
+ }
+--- a/src/Ari.Application/Services/DataQualityService.cs
++++ b/src/Ari.Application/Services/DataQualityService.cs
+@@ -14,13 +14,11 @@
+     {
+         if (rule.Weight is < 0 or > 100) throw new InvalidOperationException("وزن قاعدة الجودة يجب أن يكون بين 0 و100.");
+         await repository.SaveRuleAsync(rule, cancellationToken);
+-        await audit.WriteAsync(new AuditEvent
+-        {
+-            UserId = u

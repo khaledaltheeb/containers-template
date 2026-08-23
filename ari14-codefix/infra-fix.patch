@@ -1,0 +1,32 @@
+--- a/src/Ari.Infrastructure/Configuration/JsonConfigurationStore.cs
++++ b/src/Ari.Infrastructure/Configuration/JsonConfigurationStore.cs
+@@ -16,10 +16,10 @@
+     {
+         if (!File.Exists(path))
+         {
+-            var configuration = new AriConfiguration();
+-            AriConfigurationValidator.Validate(configuration);
+-            Save(path, configuration);
+-            return configuration;
++            var defaultConfiguration = new AriConfiguration();
++            AriConfigurationValidator.Validate(defaultConfiguration);
++            Save(path, defaultConfiguration);
++            return defaultConfiguration;
+         }
+ 
+         var json = File.ReadAllText(path, Encoding.UTF8);
+--- a/src/Ari.Infrastructure/Pdf/TesseractPdfOcrEngine.cs
++++ b/src/Ari.Infrastructure/Pdf/TesseractPdfOcrEngine.cs
+@@ -1,3 +1,4 @@
++using System.Runtime.Versioning;
+ using Ari.Application.Abstractions;
+ using Ari.Core.Configuration;
+ using Ari.Core.Domain;
+@@ -7,6 +8,7 @@
+ 
+ namespace Ari.Infrastructure.Pdf;
+ 
++[SupportedOSPlatform("windows")]
+ public sealed class TesseractPdfOcrEngine(OcrConfiguration configuration) : IPdfOcrEngine
+ {
+     public async Task<PdfOcrPageResult> RecognizePageAsync(

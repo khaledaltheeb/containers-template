@@ -1,0 +1,25 @@
+        model.Axes.Add(new LinearAxis { Position = AxisPosition.Left, Minimum = 0, Title = "Count", Key = "count" });
+         model.Axes.Add(new LinearAxis { Position = AxisPosition.Right, Minimum = 0, Maximum = 100, Title = "Cumulative %", Key = "pct" });
+-        var columns = new ColumnSeries { Title = "Count", YAxisKey = "count" };
+-        var cumulative = new LineSeries { Title = "Cumulative %", YAxisKey = "pct", MarkerType = MarkerType.Circle };
++        var columns = new BarSeries { Title = "Count", XAxisKey = "count", YAxisKey = "category" };
++        var cumulative = new LineSeries { Title = "Cumulative %", XAxisKey = "category", YAxisKey = "pct", MarkerType = MarkerType.Circle };
+         for (var i = 0; i < items.Count; i++)
+         {
+-            columns.Items.Add(new ColumnItem(items[i].Count));
++            columns.Items.Add(new BarItem(items[i].Count));
+             cumulative.Points.Add(new DataPoint(i, (double)items[i].CumulativePercentage));
+         }
+         model.Series.Add(columns);
+@@ -544,12 +544,12 @@
+             .OrderByDescending(x => x.Count)
+             .ToArray();
+         var model = new PlotModel { Title = $"Recurring records within {days} days" };
+-        var x = new CategoryAxis { Position = AxisPosition.Bottom, Angle = grouped.Length > 12 ? 45 : 0 };
++        var x = new CategoryAxis { Position = AxisPosition.Bottom, Angle = grouped.Length > 12 ? 45 : 0, Key = "category" };
+         foreach (var item in grouped) x.Labels.Add(item.Aircraft);
+         model.Axes.Add(x);
+-        model.Axes.Add(new LinearAxis { Position = AxisPosition.Left, Minimum = 0, Title = "Repeat count" });
+-        var series = new ColumnSeries { Title = "Repeats" };
+-        foreach (var item in grouped) series.Items.Add(new ColumnItem(item.Count));
++      

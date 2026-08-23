@@ -1,0 +1,56 @@
+   })
+-            }, cancellationToken);
++                })), cancellationToken);
+             return new BackupResult
+             {
+                 BundlePath = destinationZip,
+@@ -271,13 +269,12 @@
+                 configInstalled = true;
+             }
+ 
+-            await WriteAuditWithFallbackAsync(new AuditEvent
+-            {
+-                UserId = userId,
+-                EventType = "System.BackupRestored",
+-                EntityType = "Backup",
+-                EntityId = Path.GetFileName(bundlePath),
+-                DetailsJson = JsonSerializer.Serialize(new
++            await WriteAuditWithFallbackAsync(new AuditEvent(
++                userId,
++                "System.BackupRestored",
++                "Backup",
++                Path.GetFileName(bundlePath),
++                JsonSerializer.Serialize(new
+                 {
+                     bundlePath,
+                     verifiedManifest.FormatVersion,
+@@ -286,8 +283,7 @@
+                     verifiedManifest.CreatedAtUtc,
+                     migratedToSchema = currentDiagnostic.SchemaVersion,
+                     machineBoundSettingsPreserved = true
+-                })
+-            }, cancellationToken);
++                })), cancellationToken);
+ 
+             completed = true;
+         }
+@@ -331,21 +327,19 @@
+                 }
+             }
+ 
+-            await WriteAuditWithFallbackAsync(new AuditEvent
+-            {
+-                UserId = userId,
+-                EventType = "System.BackupRestoreFailed",
+-                EntityType = "Backup",
+-                EntityId = Path.GetFileName(bundlePath),
+-                DetailsJson = JsonSerializer.Serialize(new
++            await WriteAuditWithFallbackAsync(new AuditEvent(
++                userId,
++                "System.BackupRestoreFailed",
++                "Backup",
++                Path.GetFileName(bundlePath),
++                JsonSerializer.Serialize(new
+                 {
+                     bundlePath,
+                     e

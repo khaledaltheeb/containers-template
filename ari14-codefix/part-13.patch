@@ -1,0 +1,11 @@
+--- a/src/Ari.Desktop/App.xaml.cs
++++ b/src/Ari.Desktop/App.xaml.cs
+@@ -13,7 +13,7 @@
+ 
+ namespace Ari.Desktop;
+ 
+-public partial class App : Application
++public partial class App : System.Windows.Application
+ {
+     protected override async void OnStartup(StartupEventArgs e)
+     {
