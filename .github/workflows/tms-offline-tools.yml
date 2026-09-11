@@ -1,0 +1,78 @@
+name: TMs isolated Android tools
+on:
+  push:
+    branches: [tms-offline-repair-20260911]
+    paths: [.github/workflows/tms-offline-tools.yml]
+permissions:
+  contents: read
+jobs:
+  sdk:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 12
+    steps:
+      - name: Package official build tools for local compilation
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager 'build-tools;35.0.0' 'platforms;android-35'
+          mkdir -p out/sdk/build-tools out/sdk/platforms
+          cp -a "$ANDROID_HOME/build-tools/35.0.0" out/sdk/build-tools/
+          cp -a "$ANDROID_HOME/platforms/android-35" out/sdk/platforms/
+          tar -czf android-sdk-tools.tar.gz -C out sdk
+          sha256sum android-sdk-tools.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tms-official-sdk
+          path: android-sdk-tools.tar.gz
+          retention-days: 3
+          compression-level: 0
+  neural:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Fetch pinned primary model and runtimes
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p neural/model neural/runtime neural/wheels
+          base='https://huggingface.co/intfloat/multilingual-e5-small/resolve/c007d7ef6fd86656326059b28395a7a03a7c5846'
+          curl -fL --retry 3 "$base/onnx/model_qint8_avx512_vnni.onnx" -o neural/model/model.onnx
+          for f in tokenizer.json tokenizer_config.json config.json special_tokens_map.json README.md; do
+            curl -fL --retry 3 "$base/$f" -o "neural/model/$f"
+          done
+          curl -fL --retry 3 'https://raw.githubusercontent.com/microsoft/unilm/master/LICENSE' -o neural/model/LICENSE
+          curl -fL --retry 3 'https://repo.maven.apache.org/maven2/com/microsoft/onnxruntime/onnxruntime-android/1.23.2/onnxruntime-android-1.23.2.aar' -o neural/runtime/onnxruntime-android-1.23.2.aar
+          curl -fL --retry 3 'https://raw.githubusercontent.com/microsoft/onnxruntime/v1.23.2/LICENSE' -o neural/runtime/LICENSE
+          python -m pip download 'onnxruntime==1.23.2' 'tokenizers==0.21.4' -d neural/wheels
+          find neural -type f -print0 | sort -z | xargs -0 sha256sum > neural/SHA256SUMS
+          tar -czf tms-neural-tools.tar.gz neural
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tms-neural-tools
+          path: tms-neural-tools.tar.gz
+          retention-days: 3
+          compression-level: 0
+  emulator:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 18
+    steps:
+      - name: Package local emulator environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager 'emulator' 'platform-tools' 'system-images;android-35;google_apis;x86_64'
+          mkdir -p local-android/system-images/android-35/google_apis
+          cp -a "$ANDROID_HOME/emulator" local-android/
+          cp -a "$ANDROID_HOME/platform-tools" local-android/
+          cp -a "$ANDROID_HOME/system-images/android-35/google_apis/x86_64" local-android/system-images/android-35/google_apis/
+          tar -czf tms-emulator.tar.gz local-android
+          sha256sum tms-emulator.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tms-local-emulator
+          path: tms-emulator.tar.gz
+          retention-days: 3
+          compression-level: 0
