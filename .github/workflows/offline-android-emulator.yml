@@ -50,25 +50,25 @@ jobs:
           ram-size: 2048M
           heap-size: 128M
           disable-animations: true
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot -no-metrics
           script: |
             adb shell svc wifi disable
             adb shell svc data disable
-            adb install -r .android-verification/build/probe.apk
+            adb install --no-incremental -r .android-verification/build/probe.apk
             adb logcat -c
             adb shell am start -W -n org.tms.offline/.MainActivity > reports/launch.txt
-            passed=0; for i in $(seq 1 90); do adb logcat -d -s TMSOffline:I AndroidRuntime:E chromium:E > reports/logcat.txt; if grep -q TMS_PROBE_PASS reports/logcat.txt; then passed=1; break; fi; if grep -q PROBE_ERROR reports/logcat.txt; then break; fi; sleep 2; done
+            for i in $(seq 1 90); do adb logcat -d -s TMSOffline:I AndroidRuntime:E chromium:E > reports/logcat.txt; if grep -q TMS_PROBE_PASS reports/logcat.txt; then break; fi; if grep -q PROBE_ERROR reports/logcat.txt; then break; fi; sleep 2; done
             adb exec-out screencap -p > reports/screen.png
             adb shell dumpsys meminfo org.tms.offline > reports/memory.txt
             adb shell dumpsys package org.tms.offline > reports/package.txt
             adb shell dumpsys webviewupdate > reports/webview.txt
             cat reports/logcat.txt
-            test "$passed" = 1
+            grep -q TMS_PROBE_PASS reports/logcat.txt
             adb shell am force-stop org.tms.offline
             adb logcat -c
             adb shell am start -W -n org.tms.offline/.MainActivity > reports/relaunch.txt
-            passed=0; for i in $(seq 1 90); do adb logcat -d -s TMSOffline:I AndroidRuntime:E chromium:E > reports/relaunch-logcat.txt; if grep -q TMS_PROBE_PASS reports/relaunch-logcat.txt; then passed=1; break; fi; if grep -q PROBE_ERROR reports/relaunch-logcat.txt; then break; fi; sleep 2; done
-            test "$passed" = 1
+            for i in $(seq 1 90); do adb logcat -d -s TMSOffline:I AndroidRuntime:E chromium:E > reports/relaunch-logcat.txt; if grep -q TMS_PROBE_PASS reports/relaunch-logcat.txt; then break; fi; if grep -q PROBE_ERROR reports/relaunch-logcat.txt; then break; fi; sleep 2; done
+            grep -q TMS_PROBE_PASS reports/relaunch-logcat.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
