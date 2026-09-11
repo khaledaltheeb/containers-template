@@ -14,10 +14,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sdkmanager 'emulator' 'platform-tools' 'system-images;android-35;default;x86_64' >/tmp/sdk.log 2>&1
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          "$SDKMANAGER" 'emulator' 'platform-tools' 'system-images;android-35;default;x86_64' >/tmp/sdk.log 2>&1 || { cat /tmp/sdk.log; exit 1; }
           mkdir -p export/sdk out
           cp -a "$ANDROID_HOME/emulator" export/sdk/
           cp -a "$ANDROID_HOME/platform-tools" export/sdk/
+          cp -a "$ANDROID_HOME/cmdline-tools" export/sdk/
           mkdir -p export/sdk/system-images/android-35/default
           cp -a "$ANDROID_HOME/system-images/android-35/default/x86_64" export/sdk/system-images/android-35/default/
           tar -C export -czf out/android-local-emulator.tar.gz sdk
