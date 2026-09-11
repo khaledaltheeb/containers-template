@@ -5,75 +5,47 @@ on:
     paths: [.github/workflows/tms-offline-tools.yml]
 permissions:
   contents: read
+  actions: read
 jobs:
-  sdk:
+  split-emulator:
     runs-on: ubuntu-22.04
     timeout-minutes: 12
     steps:
-      - name: Acquire official SDK and package build tools
-        shell: bash
-        run: |
-          set -euo pipefail
-          export JAVA_HOME="$JAVA_HOME_17_X64"
-          export PATH="$JAVA_HOME/bin:$PATH"
-          mkdir -p out/sdk/cmdline-tools
-          curl -fL --retry 3 https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip -o cli.zip
-          unzip -q cli.zip -d unpack
-          mv unpack/cmdline-tools out/sdk/cmdline-tools/latest
-          SDK="$PWD/out/sdk"
-          set +o pipefail
-          yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK" --licenses >/dev/null
-          set -o pipefail
-          "$SDK/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK" 'build-tools;35.0.0' 'platforms;android-35'
-          tar -czf android-sdk-tools.tar.gz -C out sdk
-          sha256sum android-sdk-tools.tar.gz
-      - uses: actions/upload-artifact@v4
-        with:
-          name: tms-official-sdk
-          path: android-sdk-tools.tar.gz
-          retention-days: 3
-          compression-level: 0
-  wheels:
-    runs-on: ubuntu-22.04
-    timeout-minutes: 8
-    steps:
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.13'
-      - run: |
-          python -m pip download 'onnxruntime==1.23.2' 'tokenizers==0.21.4' -d wheels
-          tar -czf tms-wheels313.tar.gz wheels
-      - uses: actions/upload-artifact@v4
-        with:
-          name: tms-wheels313
-          path: tms-wheels313.tar.gz
-          retention-days: 3
-          compression-level: 0
-  emulator:
-    runs-on: ubuntu-22.04
-    timeout-minutes: 18
-    steps:
-      - name: Acquire local Android 15 emulator
-        shell: bash
-        run: |
-          set -euo pipefail
-          export JAVA_HOME="$JAVA_HOME_17_X64"
-          export PATH="$JAVA_HOME/bin:$PATH"
-          mkdir -p local-android/cmdline-tools
-          curl -fL --retry 3 https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip -o cli.zip
-          unzip -q cli.zip -d unpack
-          mv unpack/cmdline-tools local-android/cmdline-tools/latest
-          SDK="$PWD/local-android"
-          set +o pipefail
-          yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK" --licenses >/dev/null
-          set -o pipefail
-          "$SDK/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK" 'emulator' 'platform-tools' 'system-images;android-35;google_apis;x86_64'
-          rm -rf local-android/cmdline-tools
-          tar -czf tms-emulator.tar.gz local-android
-          sha256sum tms-emulator.tar.gz
-      - uses: actions/upload-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           name: tms-local-emulator
-          path: tms-emulator.tar.gz
-          retention-days: 3
+          run-id: 34645155220
+          github-token: ${{ github.token }}
+      - run: |
+          split -b 400M -d tms-emulator.tar.gz emulator.part.
+          sha256sum emulator.part.*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tms-emulator-part-00
+          path: emulator.part.00
           compression-level: 0
+          retention-days: 2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tms-emulator-part-01
+          path: emulator.part.01
+          compression-level: 0
+          retention-days: 2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tms-emulator-part-02
+          path: emulator.part.02
+          compression-level: 0
+          retention-days: 2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tms-emulator-part-03
+          path: emulator.part.03
+          compression-level: 0
+          retention-days: 2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tms-emulator-part-04
+          path: emulator.part.04
+          compression-level: 0
+          retention-days: 2
