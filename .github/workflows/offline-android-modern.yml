@@ -1,0 +1,71 @@
+name: Offline Android 16 verification
+on:
+  push:
+    branches: [build/offline-android-verification-20260911]
+    paths: [.github/workflows/offline-android-modern.yml]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: actions/download-artifact@v4
+        with:
+          name: offline-neural-engine
+          run-id: 34647203425
+          github-token: ${{ github.token }}
+      - name: Build synthetic test APK
+        run: |
+          tar -xzf offline-neural-engine.tar.gz
+          python -m pip install reportlab
+          python .android-verification/prepare.py
+          mkdir -p reports
+          cp .android-verification/*.java reports/
+          cp .android-verification/prepare.py reports/
+          cp .android-verification/build/AndroidManifest.xml reports/
+          cp .android-verification/build/dex/classes.dex reports/
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Verify without network
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 36
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          cores: 2
+          ram-size: 3072M
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot -no-metrics
+          script: |
+            adb shell svc wifi disable
+            adb shell svc data disable
+            adb install --no-incremental -r .android-verification/build/probe.apk
+            adb logcat -c
+            adb shell am start -W -n org.tms.offline/.MainActivity > reports/launch.txt
+            for i in $(seq 1 90); do adb logcat -d -s TMSOffline:I AndroidRuntime:E chromium:E > reports/logcat.txt; if grep -q TMS_PROBE_PASS reports/logcat.txt; then break; fi; if grep -q PROBE_ERROR reports/logcat.txt; then break; fi; sleep 2; done
+            adb exec-out screencap -p > reports/screen.png
+            adb shell dumpsys meminfo org.tms.offline > reports/memory.txt
+            adb shell dumpsys package org.tms.offline > reports/package.txt
+            adb shell dumpsys webviewupdate > reports/webview.txt
+            grep -q TMS_PROBE_PASS reports/logcat.txt
+            adb shell am force-stop org.tms.offline
+            adb logcat -c
+            adb shell am start -W -n org.tms.offline/.MainActivity > reports/relaunch.txt
+            for i in $(seq 1 90); do adb logcat -d -s TMSOffline:I AndroidRuntime:E chromium:E > reports/relaunch-logcat.txt; if grep -q TMS_PROBE_PASS reports/relaunch-logcat.txt; then break; fi; if grep -q PROBE_ERROR reports/relaunch-logcat.txt; then break; fi; sleep 2; done
+            grep -q TMS_PROBE_PASS reports/relaunch-logcat.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-verification-api-36
+          path: reports/
+          retention-days: 3
