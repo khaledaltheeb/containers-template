@@ -1,0 +1,32 @@
+name: Export official offline Android build tools
+on:
+  push:
+    branches: [build/offline-android-verification-20260911]
+    paths: [.github/workflows/offline-sdk-export.yml]
+permissions:
+  contents: read
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Package already installed official SDK tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f "$ANDROID_HOME/platforms/android-35/android.jar"
+          test -x "$ANDROID_HOME/build-tools/35.0.0/aapt2"
+          mkdir -p sdk/platforms/android-35 sdk/build-tools sdk/platform-tools
+          cp "$ANDROID_HOME/platforms/android-35/android.jar" sdk/platforms/android-35/
+          cp -a "$ANDROID_HOME/build-tools/35.0.0" sdk/build-tools/
+          cp "$ANDROID_HOME/platform-tools/adb" sdk/platform-tools/
+          tar -czf android-sdk-build35.tar.gz sdk
+          sha256sum android-sdk-build35.tar.gz > SHA256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-sdk-build35
+          path: |
+            android-sdk-build35.tar.gz
+            SHA256.txt
+          retention-days: 3
+          compression-level: 0
