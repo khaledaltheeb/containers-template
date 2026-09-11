@@ -19,18 +19,23 @@ jobs:
           set -euxo pipefail
           mkdir -p out/toolchain
           SDK="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
-          ls "$SDK/build-tools"
           test -d "$SDK/build-tools/35.0.0" || "$SDK/cmdline-tools/latest/bin/sdkmanager" 'build-tools;35.0.0'
           test -f "$SDK/platforms/android-35/android.jar" || "$SDK/cmdline-tools/latest/bin/sdkmanager" 'platforms;android-35'
           cp -a "$SDK/build-tools/35.0.0" out/toolchain/build-tools
           cp "$SDK/platforms/android-35/android.jar" out/toolchain/android.jar
           cp "$SDK/platform-tools/adb" out/toolchain/adb
           tar -C out -czf android-toolchain.tar.gz toolchain
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-build-toolchain
+          path: android-toolchain.tar.gz
+          retention-days: 3
+          compression-level: 0
       - name: Collect offline inference dependencies and model
         shell: bash
         run: |
           set -euxo pipefail
-          mkdir -p out/neural/models/e5/onnx out/neural/wheels out/neural/vendor
+          mkdir -p out/neural/models/e5/onnx out/neural/wheels out/neural/vendor out/neural/licenses
           python -m pip download --only-binary=:all: -d out/neural/wheels onnxruntime==1.22.1 tokenizers==0.21.4
           npm install --prefix runtime --ignore-scripts --no-audit --no-fund @huggingface/transformers@3.8.1
           cp -a runtime/node_modules/@huggingface/transformers/dist out/neural/vendor/transformers
@@ -41,16 +46,11 @@ jobs:
           done
           curl -fL --retry 3 'https://huggingface.co/intfloat/multilingual-e5-small/resolve/main/onnx/model_qint8_avx512_vnni.onnx?download=true' -o out/neural/models/e5/onnx/model_quantized.onnx
           echo 'dd476dd0c2514e9b9be83aeb3853fac0763e0bdf4a71645407587d77c48a2d88  out/neural/models/e5/onnx/model_quantized.onnx' | sha256sum -c -
-          cp runtime/node_modules/@huggingface/transformers/LICENSE out/neural/TRANSFORMERS_LICENSE
-          cp runtime/node_modules/onnxruntime-web/LICENSE out/neural/ONNXRUNTIME_LICENSE
-          find out/neural/vendor -type f -printf '%P %s\n' | head -80 || true
+          cp runtime/node_modules/@huggingface/transformers/LICENSE out/neural/licenses/TRANSFORMERS_LICENSE
+          find runtime/node_modules/onnxruntime-web -maxdepth 1 -type f -iname '*license*' -exec cp '{}' out/neural/licenses/ ';'
+          curl -fL --retry 3 https://raw.githubusercontent.com/microsoft/onnxruntime/v1.22.1/LICENSE -o out/neural/licenses/ONNXRUNTIME_LICENSE
+          curl -fL --retry 3 https://raw.githubusercontent.com/microsoft/unilm/master/e5/LICENSE -o out/neural/licenses/E5_LICENSE
           tar -C out -czf offline-neural-engine.tar.gz neural
-      - uses: actions/upload-artifact@v4
-        with:
-          name: android-build-toolchain
-          path: android-toolchain.tar.gz
-          retention-days: 3
-          compression-level: 0
       - uses: actions/upload-artifact@v4
         with:
           name: offline-neural-engine
