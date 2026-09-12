@@ -1,0 +1,41 @@
+name: Split Android emulator transport
+on:
+  push:
+    branches: [build/offline-android-verification-20260911]
+    paths: [.github/workflows/offline-emulator-parts.yml]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  split:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: android-local-emulator
+          run-id: 34660046238
+          github-token: ${{ github.token }}
+      - run: |
+          set -e
+          split -b 400M -d -a 2 android-local-emulator.tar.gz emulator-part-
+          sha256sum emulator-part-*
+          ls -lh emulator-part-*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: emulator-part-00
+          path: emulator-part-00
+          retention-days: 3
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: emulator-part-01
+          path: emulator-part-01
+          retention-days: 3
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: emulator-part-02
+          path: emulator-part-02
+          retention-days: 3
+          compression-level: 0
