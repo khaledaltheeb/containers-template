@@ -1,0 +1,100 @@
+name: TMs native Android app
+on:
+  push:
+    branches: [build/tms-local-ai-20260912]
+    paths: [tms-ai/java/**, tms-ai/tools/**, tms-ai/tests/android/**, .github/workflows/tms-android-app.yml]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: tms-ai-public-dependencies
+          path: deps
+          run-id: 34670818137
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: tms-native-arm64-v8a
+          path: native/arm64-v8a
+          run-id: 34671982456
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: tms-native-x86_64
+          path: native/x86_64
+          run-id: 34671982456
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: tms-model-small-01
+          path: model-info/small
+          run-id: 34670818137
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: tms-model-balanced-01
+          path: model-info/balanced
+          run-id: 34670818137
+          github-token: ${{ github.token }}
+      - name: Prepare SDK and compile native application
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+          cat deps/pdfbox.pom
+          python tms-ai/tools/build_android.py
+      - name: APK permissions and packaged-native verification
+        run: |
+          mkdir -p reports
+          "$ANDROID_HOME/build-tools/35.0.0/aapt2" dump permissions tms-ai/build/TMs_Local_AI.apk | tee reports/permissions.txt
+          ! grep -q 'android.permission.INTERNET' reports/permissions.txt
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs tms-ai/build/TMs_Local_AI.apk > reports/signature.txt
+          for ABI in arm64-v8a x86_64; do
+            readelf -l tms-ai/jniLibs/$ABI/libtms_local_ai.so > reports/native-$ABI.txt
+          done
+          python - <<'PY'
+          import zipfile,json,hashlib,pathlib
+          p=pathlib.Path('tms-ai/build/TMs_Local_AI.apk')
+          with zipfile.ZipFile(p) as z:
+            assert z.testzip() is None
+            assert not any(n.lower().endswith(('.ttf','.otf','.woff','.woff2')) for n in z.namelist())
+            assert 'lib/arm64-v8a/libtms_local_ai.so' in z.namelist()
+            assert 'lib/x86_64/libtms_local_ai.so' in z.namelist()
+            hashes=json.loads(z.read('assets/asset-hashes.json'))
+            for name,item in hashes.items():
+              data=z.read('assets/'+name)
+              assert len(data)==item['bytes'] and hashlib.sha256(data).hexdigest()==item['sha256']
+            json.dump({'apk_bytes':p.stat().st_size,'apk_sha256':hashlib.file_digest(p.open('rb'),'sha256').hexdigest(),'assets':hashes,'archive_crc':'passed','network_permission':False,'runtime_test':'not yet run'},open('reports/package-verification.json','w'),indent=2)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: TMs-Local-AI-APK-candidate
+          path: |
+            tms-ai/build/TMs_Local_AI.apk
+            tms-ai/build/SHA256.txt
+            reports/
+          retention-days: 14
+          compression-level: 6
+      - name: Export auditable source without signing keys
+        if: success()
+        run: |
+          python - <<'PY'
+          import zipfile,pathlib
+          with zipfile.ZipFile('TMs-Local-AI-Source.zip','w',zipfile.ZIP_DEFLATED,compresslevel=6) as z:
+            for p in pathlib.Path('tms-ai').rglob('*'):
+              if p.is_file() and 'build' not in p.parts and p.suffix not in ['.p12','.jks','.keystore']:
+                z.write(p,str(p))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: TMs-Local-AI-Source-candidate
+          path: TMs-Local-AI-Source.zip
+          retention-days: 14
+          compression-level: 0
