@@ -9,7 +9,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -43,20 +43,22 @@ jobs:
           run-id: 34670818137
           github-token: ${{ github.token }}
       - name: Prepare SDK and compile native application
+        shell: bash
         run: |
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+          set -euo pipefail
+          SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -path '*/bin/sdkmanager' | sort -V | tail -1)
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" 'platforms;android-35' 'build-tools;35.0.0'
           cat deps/pdfbox.pom
           python tms-ai/tools/build_android.py
+          python tms-ai/tools/device_test.py --build-only
       - name: APK permissions and packaged-native verification
         run: |
           mkdir -p reports
           "$ANDROID_HOME/build-tools/35.0.0/aapt2" dump permissions tms-ai/build/TMs_Local_AI.apk | tee reports/permissions.txt
           ! grep -q 'android.permission.INTERNET' reports/permissions.txt
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs tms-ai/build/TMs_Local_AI.apk > reports/signature.txt
-          for ABI in arm64-v8a x86_64; do
-            readelf -l tms-ai/jniLibs/$ABI/libtms_local_ai.so > reports/native-$ABI.txt
-          done
+          for ABI in arm64-v8a x86_64; do readelf -l tms-ai/jniLibs/$ABI/libtms_local_ai.so > reports/native-$ABI.txt; done
           python - <<'PY'
           import zipfile,json,hashlib,pathlib
           p=pathlib.Path('tms-ai/build/TMs_Local_AI.apk')
@@ -69,10 +71,27 @@ jobs:
             for name,item in hashes.items():
               data=z.read('assets/'+name)
               assert len(data)==item['bytes'] and hashlib.sha256(data).hexdigest()==item['sha256']
-            json.dump({'apk_bytes':p.stat().st_size,'apk_sha256':hashlib.file_digest(p.open('rb'),'sha256').hexdigest(),'assets':hashes,'archive_crc':'passed','network_permission':False,'runtime_test':'not yet run'},open('reports/package-verification.json','w'),indent=2)
+            json.dump({'apk_bytes':p.stat().st_size,'apk_sha256':hashlib.file_digest(p.open('rb'),'sha256').hexdigest(),'assets':hashes,'archive_crc':'passed','network_permission':False},open('reports/package-verification.json','w'),indent=2)
           PY
+      - name: Enable hardware virtualisation
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Test real native models and PDFs on Android
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          ram-size: 4096M
+          heap-size: 512M
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -cores 2
+          disable-animations: true
+          script: python tms-ai/tools/device_test.py
       - uses: actions/upload-artifact@v4
-        if: success()
+        if: always()
         with:
           name: TMs-Local-AI-APK-candidate
           path: |
@@ -81,8 +100,9 @@ jobs:
             reports/
           retention-days: 14
           compression-level: 6
+          if-no-files-found: ignore
       - name: Export auditable source without signing keys
-        if: success()
+        if: always()
         run: |
           python - <<'PY'
           import zipfile,pathlib
@@ -92,7 +112,7 @@ jobs:
                 z.write(p,str(p))
           PY
       - uses: actions/upload-artifact@v4
-        if: success()
+        if: always()
         with:
           name: TMs-Local-AI-Source-candidate
           path: TMs-Local-AI-Source.zip
