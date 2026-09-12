@@ -1,0 +1,89 @@
+name: TMs native local AI engine
+on:
+  push:
+    branches: [build/tms-local-ai-20260912]
+    paths: [tms-ai/native/**, tms-ai/java/org/tms/offline/NativeEngine.java, tms-ai/tests/NativeSmoke.java, .github/workflows/tms-native-engine.yml]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  native:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        abi: [host, arm64-v8a, x86_64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: tms-ai-public-dependencies
+          path: deps
+          run-id: 34670818137
+          github-token: ${{ github.token }}
+      - name: Extract pinned sources
+        run: |
+          mkdir -p sources
+          tar -xzf deps/llama-v0.4.0.tar.gz -C sources
+          tar -xzf deps/sentencepiece-v0.2.0.tar.gz -C sources
+      - name: Configure and compile
+        env:
+          ABI: ${{ matrix.abi }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXTRA=()
+          if [ "$ABI" != host ]; then
+            NDK=$(find "$ANDROID_HOME/ndk" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
+            EXTRA=(-DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" -DANDROID_ABI="$ABI" -DANDROID_PLATFORM=android-28 -DANDROID_STL=c++_static)
+          fi
+          cmake -S tms-ai/native -B build -DCMAKE_BUILD_TYPE=Release -DLLAMA_SOURCE="$PWD/sources/llama.cpp-0.4.0" -DSENTENCEPIECE_SOURCE="$PWD/sources/sentencepiece-0.2.0" "${EXTRA[@]}"
+          cmake --build build --target tms_local_ai -j 3
+          mkdir -p output
+          cp build/libtms_local_ai.so output/
+          sha256sum output/libtms_local_ai.so > output/SHA256.txt
+          readelf -l output/libtms_local_ai.so > output/ELF.txt
+      - uses: actions/download-artifact@v4
+        if: matrix.abi == 'host'
+        with:
+          name: tms-model-small-01
+          path: model-pack
+          run-id: 34670818137
+          github-token: ${{ github.token }}
+      - name: Execute actual small model and validate tokenizer IDs
+        if: matrix.abi == 'host'
+        run: |
+          python - <<'PY'
+          import pathlib,zipfile,hashlib,json
+          p=next(pathlib.Path('model-pack').glob('*.zip'))
+          with zipfile.ZipFile(p) as z:
+            meta=json.loads(z.read('manifest.json'))
+            with z.open('payload.part') as r,open('model.gguf','wb') as w:
+              while b:=r.read(1024*1024):w.write(b)
+          assert hashlib.file_digest(open('model.gguf','rb'),'sha256').hexdigest()==meta['sha256']
+          PY
+          mkdir -p classes
+          javac -encoding UTF-8 -d classes tms-ai/java/org/tms/offline/NativeEngine.java tms-ai/tests/NativeSmoke.java
+          java -Xmx512m -Djava.library.path=build -cp classes NativeSmoke deps/sentencepiece.bpe.model model.gguf output
+          python -m pip install --quiet tokenizers==0.21.2
+          python - <<'PY'
+          import json,base64,ast
+          from tokenizers import Tokenizer
+          t=Tokenizer.from_file('deps/tokenizer.json')
+          report=[]
+          for line in open('output/tokenizer-native.tsv'):
+            sample,ids=line.rstrip().split('\t')
+            sample=base64.b64decode(sample).decode()
+            native=ast.literal_eval(ids);expected=t.encode(sample).ids
+            report.append({'text':sample,'native':native,'expected':expected,'match':native==expected})
+          open('output/tokenizer-parity.json','w').write(json.dumps(report,ensure_ascii=False,indent=2))
+          assert all(x['match'] for x in report),report
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tms-native-${{ matrix.abi }}
+          path: output/
+          retention-days: 7
+          compression-level: 5
