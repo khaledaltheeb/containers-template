@@ -1,0 +1,30 @@
+#!/usr/bin/env python3
+from pathlib import Path
+import os,subprocess,zipfile,sys,time,json
+R=Path(__file__).resolve().parents[1];W=Path.cwd();S=Path(os.environ['ANDROID_HOME']);T=S/'build-tools/35.0.0';A=S/'platforms/android-35/android.jar';B=R/'build';test=B/'instrumentation';test.mkdir(exist_ok=True)
+def run(*args,**kw):return subprocess.run([str(x) for x in args],check=True,**kw)
+manifest='''<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="org.tms.localai.tests"><uses-sdk android:minSdkVersion="28" android:targetSdkVersion="35"/><application android:label="TMs Test Harness"/><instrumentation android:name="org.tms.offline.DeviceTests" android:targetPackage="org.tms.localai" android:functionalTest="true"/></manifest>'''
+(test/'AndroidManifest.xml').write_text(manifest)
+run(T/'aapt2','link','-o',test/'base.apk','-I',A,'--manifest',test/'AndroidManifest.xml','--min-sdk-version','28','--target-sdk-version','35')
+(test/'classes').mkdir(exist_ok=True);cp=os.pathsep.join([str(A),str(B/'app.jar')]+[str(p) for p in (R/'libs').glob('*.jar')])
+run('javac','-encoding','UTF-8','-source','8','-target','8','-cp',cp,'-d',test/'classes',R/'tests/android/DeviceTests.java')
+run('jar','cf',test/'test.jar','-C',test/'classes','.')
+(test/'dex').mkdir(exist_ok=True);run(T/'d8','--min-api','28','--lib',A,'--classpath',B/'app.jar','--output',test/'dex',test/'test.jar')
+with zipfile.ZipFile(test/'base.apk','a',zipfile.ZIP_DEFLATED) as z:
+ for p in (test/'dex').glob('*.dex'):z.write(p,p.name)
+run(T/'zipalign','-f','4',test/'base.apk',test/'aligned.apk')
+run(T/'apksigner','sign','--ks',W/'private-signing.p12','--ks-key-alias','tms','--ks-pass','pass:local-build-only','--out',test/'tests.apk',test/'aligned.apk')
+if '--build-only' in sys.argv:sys.exit(0)
+adb=S/'platform-tools/adb';reports=W/'reports';reports.mkdir(exist_ok=True)
+run(adb,'install','-r',B/'TMs_Local_AI.apk');run(adb,'install','-r',test/'tests.apk')
+pack=next((W/'model-info/small').glob('*.zip'));run(adb,'push',pack,'/data/local/tmp/tms-small.zip')
+run(adb,'shell','settings','put','global','airplane_mode_on','1');run(adb,'shell','svc','wifi','disable');run(adb,'shell','svc','data','disable')
+result=run(adb,'shell','am','instrument','-w','-r','org.tms.localai.tests/org.tms.offline.DeviceTests',capture_output=True,text=True,timeout=900)
+(reports/'android-instrumentation.txt').write_text(result.stdout+'\n'+result.stderr);print(result.stdout)
+run(adb,'shell','am','start','-n','org.tms.localai/org.tms.offline.MainActivity');time.sleep(3)
+with (reports/'android-home.png').open('wb') as f:run(adb,'exec-out','screencap','-p',stdout=f)
+run(adb,'shell','uiautomator','dump','/sdcard/tms-ui.xml')
+run(adb,'pull','/sdcard/tms-ui.xml',reports/'android-home.xml')
+with (reports/'android-logcat.txt').open('w') as f:run(adb,'logcat','-d','-v','brief',stdout=f)
+if 'TMS_NATIVE_TESTS_PASSED' not in result.stdout:raise SystemExit('Real Android tests did not pass; inspect instrumentation report before release.')
+print('REAL_ANDROID_TESTS_PASSED')
