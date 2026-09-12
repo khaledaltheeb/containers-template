@@ -1,0 +1,148 @@
+name: TMs local AI public dependencies
+on:
+  push:
+    branches: [build/tms-local-ai-20260912]
+    paths: [.github/workflows/tms-local-dependencies.yml]
+permissions:
+  contents: read
+jobs:
+  dependencies:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Fetch pinned public libraries
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p deps
+          curl -fL --retry 3 https://github.com/ggml-org/llama.cpp/archive/refs/tags/v0.4.0.tar.gz -o deps/llama-v0.4.0.tar.gz
+          curl -fL --retry 3 https://github.com/google/sentencepiece/archive/refs/tags/v0.2.0.tar.gz -o deps/sentencepiece-v0.2.0.tar.gz
+          curl -fL --retry 3 https://repo.maven.apache.org/maven2/com/tom-roush/pdfbox-android/2.0.27.0/pdfbox-android-2.0.27.0.aar -o deps/pdfbox.aar
+          curl -fL --retry 3 https://repo.maven.apache.org/maven2/com/tom-roush/pdfbox-android/2.0.27.0/pdfbox-android-2.0.27.0.pom -o deps/pdfbox.pom
+          curl -fL --retry 3 https://repo.maven.apache.org/maven2/com/microsoft/onnxruntime/onnxruntime-android/1.22.0/onnxruntime-android-1.22.0.aar -o deps/onnxruntime.aar
+          curl -fL --retry 3 https://repo.maven.apache.org/maven2/commons-logging/commons-logging/1.2/commons-logging-1.2.jar -o deps/commons-logging.jar
+          curl -fL --retry 3 https://huggingface.co/intfloat/multilingual-e5-small/resolve/919cfbe11fbf4f1b9bb321007c46c14feaf84227/sentencepiece.bpe.model -o deps/sentencepiece.bpe.model
+          curl -fL --retry 3 https://huggingface.co/intfloat/multilingual-e5-small/resolve/919cfbe11fbf4f1b9bb321007c46c14feaf84227/tokenizer.json -o deps/tokenizer.json
+          find deps -type f -exec sha256sum {} \; > deps/SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tms-ai-public-dependencies
+          path: deps/
+          retention-days: 7
+          compression-level: 0
+  ndk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Export installed official Android NDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          NDK=$(find "$ANDROID_HOME/ndk" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
+          echo "$NDK" > NDK_VERSION.txt
+          tar -C "$NDK" -czf ndk.tar.gz --exclude='./sources' --exclude='./simpleperf' --exclude='./shader-tools' --exclude='./python3' --exclude='./toolchains/llvm/prebuilt/linux-x86_64/share' .
+          sha256sum ndk.tar.gz > NDK_SHA256.txt
+          split -b 300M -d ndk.tar.gz ndk-part-
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tms-ndk-part-00
+          path: |
+            ndk-part-00
+            NDK_VERSION.txt
+            NDK_SHA256.txt
+          retention-days: 7
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tms-ndk-part-01
+          path: ndk-part-01
+          retention-days: 7
+          if-no-files-found: ignore
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tms-ndk-part-02
+          path: ndk-part-02
+          retention-days: 7
+          if-no-files-found: ignore
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tms-ndk-part-03
+          path: ndk-part-03
+          retention-days: 7
+          if-no-files-found: ignore
+          compression-level: 0
+  models:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        model: [small, balanced]
+    steps:
+      - name: Download and verify public GGUF model and make offline import packs
+        env:
+          MODEL: ${{ matrix.model }}
+        run: |
+          python - <<'PY'
+          import os, urllib.request, json, hashlib, zipfile, pathlib, math, time
+          small=os.environ['MODEL']=='small'
+          repo='Qwen/Qwen3-0.6B-GGUF' if small else 'ggml-org/Qwen3-1.7B-GGUF'
+          rev='1208e45d782fe18602c5eaf10e5758d5b0f24c03' if small else 'main'
+          req=f'https://huggingface.co/api/models/{repo}/revision/{rev}?blobs=true'
+          info=json.load(urllib.request.urlopen(req))
+          match=[x for x in info['siblings'] if x['rfilename'].lower().endswith('q4_k_m.gguf')]
+          assert len(match)==1,match
+          item=match[0]; revision=info['sha']; name=item['rfilename']; expected=item['lfs']['sha256']
+          source=f'https://huggingface.co/{repo}/resolve/{revision}/{name}'
+          model=pathlib.Path('model.gguf')
+          with urllib.request.urlopen(source,timeout=180) as r, model.open('wb') as w:
+            while b:=r.read(1024*1024):w.write(b)
+          digest=hashlib.file_digest(model.open('rb'),'sha256').hexdigest()
+          assert digest==expected,(digest,expected)
+          out=pathlib.Path('packs');out.mkdir()
+          block=384*1024*1024
+          size=model.stat().st_size;count=math.ceil(size/block)
+          ident='qwen3-0.6b-q4km' if small else 'qwen3-1.7b-q4km'
+          base={'format':'tms-model-pack-v1','id':ident,'title':'Qwen3 0.6B Q4_K_M' if small else 'Qwen3 1.7B Q4_K_M','family':'qwen3','role':'generation','license':'Apache-2.0','source':source,'revision':revision,'sha256':digest,'bytes':size,'parts':count,'quantization':'Q4_K_M'}
+          (out/'model-info.json').write_text(json.dumps(base,indent=2))
+          with model.open('rb') as r:
+            for i in range(count):
+              data=r.read(block);meta=dict(base,part=i,part_bytes=len(data),part_sha256=hashlib.sha256(data).hexdigest())
+              pack=out/f'{ident}-{i+1:02d}-of-{count:02d}.zip'
+              with zipfile.ZipFile(pack,'w',zipfile.ZIP_DEFLATED,compresslevel=5,allowZip64=True) as z:
+                z.writestr('manifest.json',json.dumps(meta,indent=2))
+                z.writestr('payload.part',data)
+                z.writestr('LICENSE.txt',urllib.request.urlopen('https://www.apache.org/licenses/LICENSE-2.0.txt').read())
+              print(pack,pack.stat().st_size,meta)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tms-model-${{ matrix.model }}-01
+          path: |
+            packs/*-01-of-*.zip
+            packs/model-info.json
+          retention-days: 7
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tms-model-${{ matrix.model }}-02
+          path: packs/*-02-of-*.zip
+          retention-days: 7
+          if-no-files-found: ignore
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tms-model-${{ matrix.model }}-03
+          path: packs/*-03-of-*.zip
+          retention-days: 7
+          if-no-files-found: ignore
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tms-model-${{ matrix.model }}-04
+          path: packs/*-04-of-*.zip
+          retention-days: 7
+          if-no-files-found: ignore
+          compression-level: 0
