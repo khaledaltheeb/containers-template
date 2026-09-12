@@ -1,0 +1,78 @@
+name: TMs local model quality checks
+on:
+  push:
+    branches: [build/tms-local-ai-20260912]
+    paths: [.github/workflows/tms-model-quality.yml, tms-ai/qa/**]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  quality:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        model: [small, balanced]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: tms-native-host
+          path: native
+          run-id: 34671982456
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: tms-ai-public-dependencies
+          path: deps
+          run-id: 34670818137
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: tms-model-${{ matrix.model }}-*
+          path: packs
+          run-id: 34670818137
+          github-token: ${{ github.token }}
+      - name: Assemble verified public model and run exact application prompt
+        shell: bash
+        run: |
+          mkdir -p quality stub/org/tms/offline classes
+          python - <<'PY'
+          import pathlib,zipfile,json,hashlib
+          parts={};meta=None
+          for p in pathlib.Path('packs').rglob('*.zip'):
+            with zipfile.ZipFile(p) as z:
+              m=json.loads(z.read('manifest.json'));parts[m['part']]=p;meta=m
+          assert len(parts)==meta['parts']
+          with open('model.gguf','wb') as out:
+            for i in range(meta['parts']):
+              with zipfile.ZipFile(parts[i]) as z,z.open('payload.part') as r:
+                while b:=r.read(1024*1024):out.write(b)
+          assert hashlib.file_digest(open('model.gguf','rb'),'sha256').hexdigest()==meta['sha256']
+          pathlib.Path('stub/org/tms/offline/Store.java').write_text('package org.tms.offline; public final class Store { public static final class Hit { public String text; } public static String normalize(String s) { StringBuilder b=new StringBuilder(); for(char c:s.toCharArray()){ if(c>=0x660&&c<=0x669)c=(char)(48+c-0x660);b.append(c); } return b.toString(); }}')
+          PY
+          javac -encoding UTF-8 -d classes stub/org/tms/offline/Store.java tms-ai/java/org/tms/offline/NativeEngine.java tms-ai/java/org/tms/offline/Grounding.java tms-ai/qa/ModelQuality.java
+          java -Xmx512m -Djava.library.path=native -cp classes ModelQuality model.gguf deps/sentencepiece.bpe.model
+      - name: Check SentencePiece token IDs against the original fast tokenizer
+        if: always()
+        run: |
+          python -m pip install --quiet tokenizers==0.21.2
+          python - <<'PY'
+          import json,base64,ast
+          from tokenizers import Tokenizer
+          t=Tokenizer.from_file('deps/tokenizer.json');rows=[]
+          for line in open('quality/tokenizer.tsv'):
+            b,ids=line.rstrip().split('\t');text=base64.b64decode(b).decode();native=ast.literal_eval(ids);expected=t.encode(text).ids
+            rows.append({'text':text,'native':native,'expected':expected,'pass':native==expected})
+          print(json.dumps(rows,ensure_ascii=False,indent=2))
+          json.dump(rows,open('quality/tokenizer-parity.json','w'),ensure_ascii=False,indent=2)
+          assert all(x['pass'] for x in rows)
+          assert open('quality/outcome.txt').read()=='ALL_TARGETED_CHECKS_PASSED'
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: TMs-model-quality-${{ matrix.model }}
+          path: quality/
+          retention-days: 14
