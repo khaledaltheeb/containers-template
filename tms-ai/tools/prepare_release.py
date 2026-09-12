@@ -16,8 +16,6 @@ with tarfile.open(archive,'r:gz') as t:
 actual=hashlib.file_digest(model.open('rb'),'sha256').hexdigest()
 print('ORIGINAL_E5_SHA256',actual,'BYTES',model.stat().st_size)
 assert actual=='dd476dd0c2514e9b9be83aeb3853fac0763e0bdf4a71645407587d77c48a2d88'
-# Prevent UI database mutations while the transactional importer is active.
 p=root/'java/org/tms/offline/MainActivity.java';s=p.read_text()
-s=s.replace('active.setOnCheckedChangeListener((v,on)->store.docEnabled(id,on));','active.setOnCheckedChangeListener((v,on)->{if(busy){active.setChecked(!on);return;}store.docEnabled(id,on);});')
-# Do not mutate installed-source copy: following code is the auditable build input.
+s=s.replace('active.setOnCheckedChangeListener((v,on)->store.docEnabled(id,on));','active.setOnCheckedChangeListener((v,on)->{if(!busy)store.docEnabled(id,on);});active.setOnTouchListener((v,event)->busy);')
 p.write_text(s)
