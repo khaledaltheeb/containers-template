@@ -24,7 +24,7 @@ std::string utf8(JNIEnv *e, jbyteArray data) {
     if (!data) throw std::runtime_error("Missing UTF-8 input");
     jsize n=e->GetArrayLength(data);
     std::string out(n,'\0');
-    e->GetByteArrayRegion(data,0,n,reinterpret_cast<jbyte*>(&out[0]));
+    if(n)e->GetByteArrayRegion(data,0,n,reinterpret_cast<jbyte*>(&out[0]));
     return out;
 }
 std::string path(JNIEnv *e, jstring data) {
@@ -111,7 +111,7 @@ extern "C" JNIEXPORT jint JNICALL Java_org_tms_offline_NativeEngine_generate(JNI
         if(!on_bytes||!on_stage)throw std::runtime_error("Invalid generation listener");
         std::call_once(backend_once,[]{llama_backend_init();});
         stage(e,callback,on_stage,"loading_model");
-        llama_model_params mp=llama_model_default_params();mp.n_gpu_layers=0;mp.use_mmap=true;mp.use_mlock=false;
+        llama_model_params mp=llama_model_default_params();mp.n_gpu_layers=0;
         std::unique_ptr<llama_model,ModelDelete> model(llama_model_load_from_file(path(e,file).c_str(),mp));
         if(!model)throw std::runtime_error("Cannot load the local GGUF model");
         if(cancelled.load())return 1;
@@ -131,7 +131,7 @@ extern "C" JNIEXPORT jint JNICALL Java_org_tms_offline_NativeEngine_generate(JNI
         if(!ctx)throw std::runtime_error("Not enough memory for model context");
         auto sampler_params=llama_sampler_chain_default_params();sampler_params.no_perf=true;
         std::unique_ptr<llama_sampler,SamplerDelete> sampler(llama_sampler_chain_init(sampler_params));
-        llama_sampler_chain_add(sampler.get(),llama_sampler_init_penalties(64,1.08f,0.0f,0.0f));
+        llama_sampler_chain_add(sampler.get(),llama_sampler_init_penalties(llama_vocab_n_tokens(vocab),64,1.08f,0.0f,0.0f));
         llama_sampler_chain_add(sampler.get(),llama_sampler_init_top_k(20));
         llama_sampler_chain_add(sampler.get(),llama_sampler_init_top_p(0.8f,1));
         llama_sampler_chain_add(sampler.get(),llama_sampler_init_temp(0.35f));
