@@ -1,0 +1,155 @@
+name: Offline AI v5 support
+on:
+  push:
+    branches: [build/offline-android-verification-20260911]
+    paths: ['.offline-ai-v5/**', '.github/workflows/offline-ai-v5-support.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Prepare pinned sources and dependencies
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p work export/deps export/native export/licenses export/source
+          git clone --depth 1 --branch v0.4.0 https://github.com/ggml-org/llama.cpp work/llama
+          git clone --depth 1 --branch v0.2.0 https://github.com/google/sentencepiece work/sentencepiece
+          cp .offline-ai-v5/native.cpp work/native.cpp
+          cp work/native.cpp export/source/
+          cp work/llama/LICENSE export/licenses/llama-MIT.txt
+          cp work/sentencepiece/LICENSE export/licenses/sentencepiece-Apache2.txt
+          curl -fL --retry 3 https://repo.maven.apache.org/maven2/com/microsoft/onnxruntime/onnxruntime-android/1.23.2/onnxruntime-android-1.23.2.aar -o export/deps/onnxruntime.aar
+          curl -fL --retry 3 https://repo.maven.apache.org/maven2/com/microsoft/onnxruntime/onnxruntime/1.23.2/onnxruntime-1.23.2.jar -o export/deps/onnxruntime-linux.jar
+          curl -fL --retry 3 https://repo.maven.apache.org/maven2/com/tom-roush/pdfbox-android/2.0.27.0/pdfbox-android-2.0.27.0.aar -o export/deps/pdfbox.aar
+          curl -fL --retry 3 https://repo.maven.apache.org/maven2/com/tom-roush/pdfbox-android/2.0.27.0/pdfbox-android-2.0.27.0.pom -o export/deps/pdfbox.pom
+          curl -fL --retry 3 https://repo.maven.apache.org/maven2/org/bouncycastle/bcprov-jdk15to18/1.72/bcprov-jdk15to18-1.72.jar -o export/deps/bcprov.jar
+          curl -fL --retry 3 https://repo.maven.apache.org/maven2/org/bouncycastle/bcpkix-jdk15to18/1.72/bcpkix-jdk15to18-1.72.jar -o export/deps/bcpkix.jar
+          curl -fL --retry 3 https://repo.maven.apache.org/maven2/org/bouncycastle/bcutil-jdk15to18/1.72/bcutil-jdk15to18-1.72.jar -o export/deps/bcutil.jar
+          curl -fL --retry 3 https://huggingface.co/intfloat/multilingual-e5-small/resolve/main/sentencepiece.bpe.model -o export/deps/sentencepiece.bpe.model
+          echo 'cfc8146abe2a0488e9e2a0c56de7952f7c11ab059eca145a0a727afce0db2865  export/deps/sentencepiece.bpe.model' | sha256sum -c -
+          (yes | sdkmanager 'ndk;27.2.12479018' >/dev/null) || test -d "$ANDROID_HOME/ndk/27.2.12479018"
+          cat > work/CMakeLists.txt <<'CMAKE'
+          cmake_minimum_required(VERSION 3.22)
+          project(offlineai LANGUAGES C CXX)
+          set(CMAKE_CXX_STANDARD 17)
+          set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+          set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+          set(LLAMA_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+          set(LLAMA_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+          set(LLAMA_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
+          set(LLAMA_BUILD_SERVER OFF CACHE BOOL "" FORCE)
+          set(LLAMA_CURL OFF CACHE BOOL "" FORCE)
+          set(GGML_NATIVE OFF CACHE BOOL "" FORCE)
+          set(GGML_OPENMP OFF CACHE BOOL "" FORCE)
+          set(GGML_AVX OFF CACHE BOOL "" FORCE)
+          set(GGML_AVX2 OFF CACHE BOOL "" FORCE)
+          set(GGML_FMA OFF CACHE BOOL "" FORCE)
+          set(GGML_F16C OFF CACHE BOOL "" FORCE)
+          set(SPM_ENABLE_SHARED OFF CACHE BOOL "" FORCE)
+          set(SPM_BUILD_TEST OFF CACHE BOOL "" FORCE)
+          set(SPM_ENABLE_TCMALLOC OFF CACHE BOOL "" FORCE)
+          add_subdirectory(llama)
+          add_subdirectory(sentencepiece)
+          add_library(offlineai SHARED native.cpp)
+          target_include_directories(offlineai PRIVATE sentencepiece/src)
+          target_link_libraries(offlineai PRIVATE llama sentencepiece-static)
+          if(NOT ANDROID)
+            find_package(JNI REQUIRED)
+            target_include_directories(offlineai PRIVATE ${JNI_INCLUDE_DIRS})
+          endif()
+          target_link_options(offlineai PRIVATE -Wl,-z,max-page-size=16384)
+          CMAKE
+          cp work/CMakeLists.txt export/source/
+          git -C work/llama rev-parse HEAD > export/source/llama-commit.txt
+          git -C work/sentencepiece rev-parse HEAD > export/source/sentencepiece-commit.txt
+      - name: Build native engines
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cmake -S work -B work/build-linux -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build work/build-linux --target offlineai -j 4
+          mkdir -p export/native/linux-x86_64
+          cp work/build-linux/libofflineai.so export/native/linux-x86_64/
+          for abi in arm64-v8a x86_64; do
+            cmake -S work -B work/build-$abi -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE="$ANDROID_HOME/ndk/27.2.12479018/build/cmake/android.toolchain.cmake" -DANDROID_ABI=$abi -DANDROID_PLATFORM=android-28 -DANDROID_STL=c++_static -DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON
+            cmake --build work/build-$abi --target offlineai -j 4
+            mkdir -p export/native/$abi
+            cp work/build-$abi/libofflineai.so export/native/$abi/
+          done
+          find export -type f -print0 | sort -z | xargs -0 sha256sum > export/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: offline-ai-v5-native
+          path: export/
+          retention-days: 7
+  models:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        model: [small, medium]
+    steps:
+      - name: Download verified public model and make local import parts
+        env:
+          MODEL: ${{ matrix.model }}
+        shell: python
+        run: |
+          import os, urllib.request, hashlib, json, pathlib, math
+          if os.environ['MODEL']=='small':
+              mid='qwen3-0.6b'; name='Qwen3-0.6B-Q4_K_M.gguf'
+              repo='Qwen/Qwen3-0.6B-GGUF'; rev='1208e45d782fe18602c5eaf10e5758d5b0f24c03'
+              expected='b0638f08417a2d3c8652760462eb5407c6e30173cf9608ad0820757a281eea0e'
+          else:
+              mid='qwen3-1.7b'; name='Qwen3-1.7B-Q4_K_M.gguf'
+              repo='ggml-org/Qwen3-1.7B-GGUF'; rev='main'
+              expected='d2387ca2dbfee2ffabce7120d3770dadca0b293052bc2f0e138fdc940d9bc7b5'
+          url=f'https://huggingface.co/{repo}/resolve/{rev}/{name}'
+          urllib.request.urlretrieve(url, name)
+          p=pathlib.Path(name)
+          digest=hashlib.file_digest(p.open('rb'),'sha256').hexdigest()
+          assert digest==expected,(digest,expected)
+          limit=400_000_000 if mid.endswith('0.6b') else 350_000_000
+          parts=math.ceil(p.stat().st_size/limit)
+          with p.open('rb') as src:
+              for i in range(parts):
+                  out=pathlib.Path('out')/('part%02d'%i);out.mkdir(parents=True)
+                  block=src.read(limit);(out/'payload.bin').write_bytes(block)
+                  meta=dict(format='tms-local-model-v1',id=mid,name=name,part=i,parts=parts,size=p.stat().st_size,sha256=digest,part_size=len(block),part_sha256=hashlib.sha256(block).hexdigest(),source=url,license='Apache-2.0',quantization='Q4_K_M',runtime='llama.cpp')
+                  (out/'manifest.json').write_text(json.dumps(meta,indent=2))
+                  try: urllib.request.urlretrieve(f'https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/resolve/main/LICENSE',out/'LICENSE.txt')
+                  except Exception: raise
+          print(json.dumps(meta,indent=2))
+      - uses: actions/upload-artifact@v4
+        with:
+          name: offline-ai-v5-${{ matrix.model }}-00
+          path: out/part00/
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: offline-ai-v5-${{ matrix.model }}-01
+          path: out/part01/
+          if-no-files-found: ignore
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: offline-ai-v5-${{ matrix.model }}-02
+          path: out/part02/
+          if-no-files-found: ignore
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: offline-ai-v5-${{ matrix.model }}-03
+          path: out/part03/
+          if-no-files-found: ignore
+          retention-days: 7
