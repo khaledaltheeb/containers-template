@@ -24,6 +24,13 @@ jobs:
           git clone --depth 1 --branch v0.4.0 https://github.com/ggml-org/llama.cpp work/llama
           git clone --depth 1 --branch v0.2.0 https://github.com/google/sentencepiece work/sentencepiece
           cp .offline-ai-v5/native.cpp work/native.cpp
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('work/native.cpp');s=p.read_text()
+          s=s.replace('mp.use_mmap=true;mp.use_mlock=false;', 'mp.progress_callback=[](float,void*){return !cancelled.load();};')
+          s=s.replace('llama_sampler_init_penalties(96,', 'llama_sampler_init_penalties(llama_vocab_n_tokens(vocab),96,')
+          p.write_text(s)
+          PY
           cp work/native.cpp export/source/
           cp work/llama/LICENSE export/licenses/llama-MIT.txt
           cp work/sentencepiece/LICENSE export/licenses/sentencepiece-Apache2.txt
@@ -47,6 +54,7 @@ jobs:
           set(GGML_AVX2 OFF CACHE BOOL "" FORCE)
           set(GGML_FMA OFF CACHE BOOL "" FORCE)
           set(GGML_F16C OFF CACHE BOOL "" FORCE)
+          set(GGML_BMI2 OFF CACHE BOOL "" FORCE)
           set(SPM_ENABLE_SHARED OFF CACHE BOOL "" FORCE)
           set(SPM_BUILD_TEST OFF CACHE BOOL "" FORCE)
           set(SPM_ENABLE_TCMALLOC OFF CACHE BOOL "" FORCE)
