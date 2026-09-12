@@ -6,6 +6,9 @@ on:
 permissions:
   contents: read
   actions: read
+concurrency:
+  group: tms-android-build
+  cancel-in-progress: true
 jobs:
   build:
     runs-on: ubuntu-24.04
@@ -17,6 +20,12 @@ jobs:
           name: tms-ai-public-dependencies
           path: deps
           run-id: 34670818137
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: offline-neural-engine
+          path: legacy-model
+          run-id: 34647203425
           github-token: ${{ github.token }}
       - uses: actions/download-artifact@v4
         with:
@@ -49,7 +58,7 @@ jobs:
           SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -path '*/bin/sdkmanager' | sort -V | tail -1)
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" 'platforms;android-35' 'build-tools;35.0.0'
-          cat deps/pdfbox.pom
+          python tms-ai/tools/prepare_release.py
           python tms-ai/tools/build_android.py
           python tms-ai/tools/device_test.py --build-only
       - name: APK permissions and packaged-native verification
